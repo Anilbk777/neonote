@@ -9,7 +9,6 @@ import 'package:project/personalScreen/diary.dart';
 import 'package:project/dashboard.dart';
 import 'package:project/personalScreen/inbox.dart';
 import 'package:project/personalScreen/bin.dart';
-import 'package:project/widgets/dynamic_page.dart';
 import 'package:project/personalScreen/calender.dart';
 import 'package:project/personalScreen/templates.dart';
 import 'package:project/personalScreen/goal.dart';
@@ -20,12 +19,14 @@ class CustomScaffold extends StatefulWidget {
   final String selectedPage;
   final Function(String) onItemSelected;
   final Widget body;
+  final FloatingActionButton? floatingActionButton; 
 
   const CustomScaffold({
     super.key,
     required this.selectedPage,
     required this.onItemSelected,
     required this.body,
+    this.floatingActionButton,
   });
 
   @override
@@ -38,6 +39,7 @@ class _CustomScaffoldState extends State<CustomScaffold> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+
       body: Row(
         children: [
           Expanded(
@@ -121,6 +123,7 @@ class _CustomScaffoldState extends State<CustomScaffold> {
           ),
         ],
       ),
+        // floatingActionButton: floatingActionButton,  // Use the parameter here
     );
   }
 
@@ -149,7 +152,7 @@ class _CustomScaffoldState extends State<CustomScaffold> {
       case 'Goals':
         return GoalPage();
       case 'Task List':
-        return TaskListPage();
+        return TaskScreen();
       default:
         return Container();
     }

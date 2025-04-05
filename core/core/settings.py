@@ -42,8 +42,10 @@ INSTALLED_APPS = [
     'corsheaders',
     'channels',
     'accounts',
-    'notes',
+    'task',
     'api',
+    'goals',
+    'diary',
 ]
 
 ASGI_APPLICATION = 'your_project_name.asgi.application'
