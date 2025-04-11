@@ -1,191 +1,192 @@
-// // import 'dart:convert';
-// import 'package:flutter/material.dart';
-// import 'package:provider/provider.dart';
-// import 'package:file_picker/file_picker.dart';
-// import 'package:project/widgets/custom_scaffold.dart'; // Your custom scaffold with sidebar
-// // import 'package:project/providers/notes_provider.dart';
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart' hide Text;
+import 'package:provider/provider.dart';
+import 'package:project/widgets/custom_scaffold.dart';
+import 'package:project/providers/pages_provider.dart';
 
-// class QuickNotesPage extends StatefulWidget {
-//   const QuickNotesPage({Key? key}) : super(key: key);
+class QuickNotesPage extends StatefulWidget {
+  const QuickNotesPage({Key? key}) : super(key: key);
 
-//   @override
-//   _QuickNotesPageState createState() => _QuickNotesPageState();
-// }
+  @override
+  _QuickNotesPageState createState() => _QuickNotesPageState();
+}
 
-// class _QuickNotesPageState extends State<QuickNotesPage> {
-//   String _selectedPage = 'Quick Notes';
-//   String _noteTitle = '';
-//   String _noteContent = '';
-//   PlatformFile? _selectedImage;
-//   PlatformFile? _selectedFile;
-//   PlatformFile? _selectedVideo;
+class _QuickNotesPageState extends State<QuickNotesPage> {
+  late QuillController _quillController;
+  final FocusNode _focusNode = FocusNode();
+  final ScrollController _scrollController = ScrollController();
+  bool _showToolbar = false;
+  final TextEditingController _titleController = TextEditingController(text: 'Untitled');
+  bool _isDirty = false; // Track if content has been modified
 
-//   final TextEditingController _titleController = TextEditingController();
-//   final TextEditingController _contentController = TextEditingController();
+  @override
+  void initState() {
+    super.initState();
+    // Initialize with empty document
+    _quillController = QuillController(
+      document: Document(),
+      selection: const TextSelection.collapsed(offset: 0),
+    );
 
-//   @override
-//   void dispose() {
-//     _titleController.dispose();
-//     _contentController.dispose();
-//     super.dispose();
-//   }
+    // Listen for changes to mark content as dirty
+    _quillController.addListener(_onTextChanged);
+    _titleController.addListener(_onTextChanged);
+  }
 
-//   // Pick an image from the gallery
-//   Future<void> _pickImage() async {
-//     final result = await FilePicker.platform.pickFiles(type: FileType.image);
-//     if (result != null && result.files.isNotEmpty) {
-//       setState(() {
-//         _selectedImage = result.files.first;
-//       });
-//     }
-//   }
+  void _onTextChanged() {
+    if (!_isDirty) {
+      setState(() {
+        _isDirty = true;
+      });
+    }
+  }
 
-//   // Pick any file (e.g., PDF, DOCX)
-//   Future<void> _pickFile() async {
-//     final result = await FilePicker.platform.pickFiles();
-//     if (result != null && result.files.isNotEmpty) {
-//       setState(() {
-//         _selectedFile = result.files.first;
-//       });
-//     }
-//   }
+  Future<void> _saveContent() async {
+    try {
+      // Convert the document to Delta JSON
+      final content = jsonEncode(_quillController.document.toDelta().toJson());
 
-//   // Pick a video from the gallery
-//   Future<void> _pickVideo() async {
-//     final result = await FilePicker.platform.pickFiles(type: FileType.video);
-//     if (result != null && result.files.isNotEmpty) {
-//       setState(() {
-//         _selectedVideo = result.files.first;
-//       });
-//     }
-//   }
+      // Save using the PagesProvider
+      await Provider.of<PagesProvider>(context, listen: false)
+          .createPage(_titleController.text, content);
 
-//   // Save the note using the provider
-//   Future<void> _saveNote(NotesProvider notesProvider) async {
-//     await notesProvider.addNote(
-//       title: _noteTitle,
-//       content: _noteContent,
-//       image: _selectedImage,
-//       file: _selectedFile,
-//       video: _selectedVideo,
-//     );
-//     // Clear input fields after saving
-//     setState(() {
-//       _noteTitle = '';
-//       _noteContent = '';
-//       _selectedImage = null;
-//       _selectedFile = null;
-//       _selectedVideo = null;
-//       _titleController.clear();
-//       _contentController.clear();
-//     });
-//   }
+      setState(() {
+        _isDirty = false;
+      });
 
-//   @override
-//   Widget build(BuildContext context) {
-//     final notesProvider = Provider.of<NotesProvider>(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Note saved successfully'))
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving note: ${e.toString()}'))
+        );
+      }
+    }
+  }
 
-//     return CustomScaffold(
-//       selectedPage: _selectedPage,
-//       onItemSelected: (page) {
-//         setState(() {
-//           _selectedPage = page;
-//         });
-//       },
-//       body: Scaffold(
-//         appBar: AppBar(
-//           title: const Text('Quick Notes'),
-//           actions: [
-//             IconButton(
-//               icon: const Icon(Icons.save),
-//               onPressed: () {
-//                 _saveNote(notesProvider);
-//               },
-//             ),
-//           ],
-//         ),
-//         body: SingleChildScrollView(
-//           padding: const EdgeInsets.all(16.0),
-//           child: Column(
-//             children: [
-//               TextField(
-//                 controller: _titleController,
-//                 decoration: const InputDecoration(
-//                   labelText: 'Title',
-//                   border: OutlineInputBorder(),
-//                 ),
-//                 onChanged: (value) {
-//                   setState(() {
-//                     _noteTitle = value;
-//                   });
-//                 },
-//               ),
-//               const SizedBox(height: 10),
-//               TextField(
-//                 controller: _contentController,
-//                 decoration: const InputDecoration(
-//                   labelText: 'Content',
-//                   border: OutlineInputBorder(),
-//                 ),
-//                 maxLines: 5,
-//                 onChanged: (value) {
-//                   setState(() {
-//                     _noteContent = value;
-//                   });
-//                 },
-//               ),
-//               const SizedBox(height: 10),
-//               Row(
-//                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-//                 children: [
-//                   ElevatedButton(
-//                     onPressed: _pickImage,
-//                     child: const Text('Pick Image'),
-//                   ),
-//                   ElevatedButton(
-//                     onPressed: _pickFile,
-//                     child: const Text('Pick File'),
-//                   ),
-//                   ElevatedButton(
-//                     onPressed: _pickVideo,
-//                     child: const Text('Pick Video'),
-//                   ),
-//                 ],
-//               ),
-//               const SizedBox(height: 10),
-//               Text(
-//                 'Selected Image: ${_selectedImage?.name ?? 'None'}',
-//                 style: const TextStyle(color: Colors.grey),
-//               ),
-//               Text(
-//                 'Selected File: ${_selectedFile?.name ?? 'None'}',
-//                 style: const TextStyle(color: Colors.grey),
-//               ),
-//               Text(
-//                 'Selected Video: ${_selectedVideo?.name ?? 'None'}',
-//                 style: const TextStyle(color: Colors.grey),
-//               ),
-//               const SizedBox(height: 20),
-//               // Optionally, display the list of notes (if you want to see them on the page)
-//               const Divider(),
-//               ListView.builder(
-//                 shrinkWrap: true,
-//                 physics: NeverScrollableScrollPhysics(),
-//                 itemCount: notesProvider.notes.length,
-//                 itemBuilder: (ctx, index) {
-//                   final note = notesProvider.notes[index];
-//                   return ListTile(
-//                     title: Text(note.title),
-//                     subtitle: Text(note.content),
-//                   );
-//                 },
-//               ),
-//             ],
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-// }
+  Future<bool> _onWillPop() async {
+    if (_isDirty) {
+      // Show confirmation dialog if there are unsaved changes
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Unsaved Changes'),
+          content: const Text('Do you want to save your changes?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Discard'),
+            ),
+            TextButton(
+              onPressed: () async {
+                await _saveContent();
+                if (mounted) {
+                  Navigator.of(context).pop(true);
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      );
+      return result ?? false;
+    }
+    return true;
+  }
 
+  @override
+  Widget build(BuildContext context) {
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: CustomScaffold(
+        selectedPage: 'Quick Notes',
+        onItemSelected: (page) {
+          // Handle navigation if needed
+        },
+        body: Scaffold(
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 1,
+            title: TextField(
+              controller: _titleController,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w500,
+              ),
+              decoration: const InputDecoration(
+                hintText: 'Untitled Note',
+                border: InputBorder.none,
+              ),
+            ),
+            actions: [
+              if (_isDirty)
+                const Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: Icon(Icons.circle, color: Colors.blue, size: 12),
+                ),
+              IconButton(
+                icon: const Icon(Icons.save_outlined),
+                onPressed: _saveContent,
+                tooltip: 'Save note',
+              ),
+              IconButton(
+                icon: Icon(_showToolbar ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down),
+                onPressed: () {
+                  setState(() {
+                    _showToolbar = !_showToolbar;
+                  });
+                },
+                tooltip: _showToolbar ? 'Hide formatting' : 'Show formatting',
+              ),
+            ],
+          ),
+          body: Column(
+            children: [
+              if (_showToolbar)
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    border: Border(
+                      bottom: BorderSide(color: Colors.grey[200]!),
+                    ),
+                  ),
+                  child: QuillSimpleToolbar(
+                    controller: _quillController,
+                    config: const QuillSimpleToolbarConfig(),
+                  ),
+                ),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  child: QuillEditor.basic(
+                    controller: _quillController,
+                    config: const QuillEditorConfig(
+                      // No need for readOnly parameter here, it's controlled by the controller
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _quillController.removeListener(_onTextChanged);
+    _quillController.dispose();
+    _focusNode.dispose();
+    _scrollController.dispose();
+    _titleController.dispose();
+    super.dispose();
+  }
+}
 

@@ -106,22 +106,16 @@ class Task(models.Model):
         ('high', 'High'),
     ]
 
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='goal_tasks')  # Task owner
-    title = models.CharField(max_length=255)  # Task name
-    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='pending')  # Task status
-    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')  # Task priority
-    due_date = models.DateField(null=True, blank=True)  # Optional due date
-    date_created = models.DateTimeField(auto_now_add=True)  # Auto-created timestamp
-    goal = models.ForeignKey(Goal, related_name='tasks', on_delete=models.CASCADE, null=True, blank=True)  # Related goal
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='goal_tasks')
+    title = models.CharField(max_length=255)
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='pending')
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
+    due_date = models.DateField(null=True, blank=True)
+    date_created = models.DateTimeField(auto_now_add=True)
+    goal = models.ForeignKey(Goal, related_name='tasks', on_delete=models.CASCADE, null=True, blank=True)
     created_by = models.CharField(max_length=100, default='system')
-    created_at = models.DateTimeField(default=timezone.now)  # Default value added here
-    last_modified_by = models.CharField(max_length=100, null=True, blank=True)
-    last_modified_at = models.DateTimeField(auto_now=True)
+  
+
 
     def __str__(self):
         return self.title
-
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-        if self.goal:
-            self.goal.update_completion_status()

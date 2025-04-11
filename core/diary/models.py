@@ -1,41 +1,41 @@
 from django.db import models
 from django.conf import settings
-from django.utils import timezone
+from accounts.models import CustomUser
 
-from django.contrib.auth.models import User
-import os
-import uuid
-
-# def diary_image_path(instance, filename):
-#     # Generate a unique filename with original extension
-#     ext = filename.split('.')[-1]
-#     filename = f"{uuid.uuid4()}.{ext}"
-#     return os.path.join('diary_images', str(instance.diary.id), filename)
 
 class Diary(models.Model):
     MOOD_CHOICES = [
         ('Happy', 'Happy'),
         ('Sad', 'Sad'),
-        ('Excited', 'Excited'), 
+        ('Excited', 'Excited'),
         ('Tired', 'Tired'),
         ('Anxious', 'Anxious'),
     ]
-    
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='diaries')
+
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='diaries')  # Goal owner
     title = models.CharField(max_length=255)
     content = models.TextField()
     date = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     mood = models.CharField(max_length=50, choices=MOOD_CHOICES, blank=True, null=True)
-    background_color = models.IntegerField()  # Storing as hex color
-    text_color = models.IntegerField()  # Storing as hex color
+    # background_color = models.BigIntegerField(default=0xFFFFFF)
+    # text_color = models.BigIntegerField(default=0x000000)
+    background_color = models.BigIntegerField(default=0xFFFFFF, null=False, blank=False)  # Ensure non-null
+    text_color = models.BigIntegerField(default=0x000000, null=False, blank=False)  # Ensure non-null
     template = models.CharField(max_length=50, default='Default')
-    
+
     class Meta:
         ordering = ['-date']
-        
+
     def __str__(self):
         return f"{self.title} - {self.date}"
-    
-   
+
+
+class DiaryImage(models.Model):
+    diary = models.ForeignKey(Diary, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to='diary_images/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Image for {self.diary.title} uploaded on {self.uploaded_at}"

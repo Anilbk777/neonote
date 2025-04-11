@@ -19,7 +19,7 @@ class CustomScaffold extends StatefulWidget {
   final String selectedPage;
   final Function(String) onItemSelected;
   final Widget body;
-  final FloatingActionButton? floatingActionButton; 
+  final FloatingActionButton? floatingActionButton;
 
   const CustomScaffold({
     super.key,
@@ -34,12 +34,12 @@ class CustomScaffold extends StatefulWidget {
 }
 
 class _CustomScaffoldState extends State<CustomScaffold> {
-  List<String> personalSpacePages = ['Diary', 'Quick Notes', 'Goals', 'Task List'];
+  List<String> personalSpacePages = ['Diary',  'Goals', 'Task List'];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-
+      floatingActionButton: widget.floatingActionButton,
       body: Row(
         children: [
           Expanded(
@@ -90,7 +90,11 @@ class _CustomScaffoldState extends State<CustomScaffold> {
                           children: pagesProvider.pages.map((pageModel) {
                             return ListTile(
                               leading: const Icon(Icons.book, color: Colors.black54),
-                              title: Text(pageModel.title),
+                              title: Text(
+                                pageModel.title,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
                               onTap: () {
                                 Navigator.push(
                                   context,
@@ -130,7 +134,11 @@ class _CustomScaffoldState extends State<CustomScaffold> {
  Widget _buildSidebarItem(IconData icon, String label, Widget destinationPage) {
   return ListTile(
     leading: Icon(icon, color: Colors.black54),
-    title: Text(label),
+    title: Text(
+      label,
+      overflow: TextOverflow.ellipsis,
+      maxLines: 1,
+    ),
     onTap: () {
       // Delay navigation until the current frame is complete
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -147,8 +155,8 @@ class _CustomScaffoldState extends State<CustomScaffold> {
     switch (pageName) {
       case 'Diary':
         return DiaryPage();
-      case 'Quick Notes':
-        // return QuickNotesPage();
+      // case 'Quick Notes':
+      //   return QuickNotesPage();
       case 'Goals':
         return GoalPage();
       case 'Task List':

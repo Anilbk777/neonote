@@ -1,6 +1,11 @@
 
+# ============================================================================================================
+
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
 from .models import Goal, Task
 from .serializers import GoalSerializer, TaskSerializer
 
@@ -28,15 +33,12 @@ class GoalViewSet(viewsets.ModelViewSet):
         """
         serializer.save(user=self.request.user, last_modified_by=self.request.user.email)
 
+
 class TaskViewSet(viewsets.ModelViewSet):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        """
-        Optionally restricts the returned tasks to a given goal,
-        by filtering against a `goal_id` query parameter in the URL.
-        """
         queryset = Task.objects.all()
         goal_id = self.request.query_params.get('goal_id')
         if goal_id is not None:
@@ -44,13 +46,26 @@ class TaskViewSet(viewsets.ModelViewSet):
         return queryset
     
     def perform_create(self, serializer):
-        """
-        Override this method to associate the created task with the authenticated user.
-        """
-        serializer.save(user=self.request.user, created_by=self.request.user.email)
-
+        # Automatically set the user and created_by fields
+        serializer.save(
+            user=self.request.user,
+            created_by=self.request.user.email,
+        )
     def perform_update(self, serializer):
-        """
-        Override this method to ensure the task remains associated with the authenticated user.
-        """
-        serializer.save(user=self.request.user, last_modified_by=self.request.user.email)
+        # Preserve the goal and user fields during updates
+        serializer.save(goal=serializer.instance.goal, user=serializer.instance.user)
+
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from .models import Task
+from .serializers import TaskSerializer
+
+class GoalTasksView(APIView):
+    def get(self, request, goal_id):
+        active_tasks = Task.objects.filter(goal_id=goal_id).exclude(status='completed')
+        completed_tasks = Task.objects.filter(goal_id=goal_id, status='completed')
+
+        return Response({
+            "active_tasks": TaskSerializer(active_tasks, many=True).data,
+            "completed_tasks": TaskSerializer(completed_tasks, many=True).data
+        })

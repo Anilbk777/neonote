@@ -1,5 +1,4 @@
 
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -8,7 +7,6 @@ import 'package:project/widgets/custom_scaffold.dart'; // Import your reusable s
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'login_page.dart';
-// import 'services/local_storage.dart';
 import 'package:project/services/local_storage.dart';
 import 'package:project/personalScreen/content_page.dart';
 import 'package:project/providers/pages_provider.dart';
@@ -135,36 +133,18 @@ Future<void> _logout() async {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const SizedBox(width: 50), // Add space before Good Morning
-                    Text(
-                      'Good Morning, $_fullName',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                Container(
-                  width: 400,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8.0),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.search, color: Colors.grey),
-                      SizedBox(width: 8),
-                      Text('Search...', style: TextStyle(color: Colors.grey)),
-                    ],
+                const Spacer(), // This pushes the text to the center
+                Text(
+                  'Good Morning, $_fullName',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
+                const Spacer(), // This ensures the text stays centered
                 IconButton(
                   icon: const Icon(Icons.logout, color: Colors.white),
-                  onPressed: _logout, // Call the logout function
+                  onPressed: _logout,
                   tooltip: 'Logout',
                 ),
               ],
