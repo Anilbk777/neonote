@@ -894,28 +894,12 @@ class _DiaryPageState extends State<DiaryPage> {
                 ),
               ),
             ),
+            // New Entry Button
             Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Row(
-                    children: const [
-                      Icon(
-                        Icons.book,
-                        size: 24,
-                        color: Color(0xFF255DE1),
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        "Recent Entries",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
                   TextButton.icon(
                     onPressed: _navigateToNewDiary,
                     icon: const Icon(Icons.add),
@@ -925,19 +909,6 @@ class _DiaryPageState extends State<DiaryPage> {
                     ),
                   ),
                 ],
-              ),
-            ),
-            SizedBox(
-              height: 110,
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                scrollDirection: Axis.horizontal,
-                itemCount: diaries.length + 1,
-                itemBuilder: (context, index) => Container(
-                  width: 100,
-                  margin: const EdgeInsets.only(right: 8),
-                  child: _buildRecentDiaryCard(index),
-                ),
               ),
             ),
             Padding(

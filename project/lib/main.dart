@@ -8,8 +8,11 @@ import 'login_page.dart';
 import 'register_page.dart';
 import 'dashboard.dart';
 import 'providers/pages_provider.dart';
+import 'package:project/personalScreen/diary_page.dart';
+import 'package:project/services/local_storage.dart';
 
-void main() {
+void main() async {
+  // Check if the user is already logged in
   runApp(
     MultiProvider(
       providers: [
@@ -20,8 +23,31 @@ void main() {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  _MyAppState createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  String _initialRoute = '/login';
+
+  @override
+  void initState() {
+    super.initState();
+    _checkLoginStatus();
+  }
+
+  Future<void> _checkLoginStatus() async {
+    // Check if the user is already logged in
+    String? token = await LocalStorage.getToken();
+    if (token != null && token.isNotEmpty) {
+      setState(() {
+        _initialRoute = '/dashboard';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,11 +66,12 @@ class MyApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      initialRoute: '/login',
+      initialRoute: _initialRoute,
       routes: {
         '/login': (context) => LoginPage(),
         '/register': (context) => RegisterPage(),
         '/dashboard': (context) => DashboardScreen(),
+        '/diary': (context) => DiaryPage(),
       },
     );
   }

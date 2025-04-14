@@ -10,6 +10,9 @@ import 'login_page.dart';
 import 'package:project/services/local_storage.dart';
 import 'package:project/personalScreen/content_page.dart';
 import 'package:project/providers/pages_provider.dart';
+import 'package:project/services/diary_service.dart';
+import 'package:project/personalScreen/newPages/Openned_diary.dart';
+import 'package:intl/intl.dart';
 
 
 class DashboardScreen extends StatefulWidget {
@@ -25,19 +28,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _selectedPage = "Home";
   String _fullName = 'Loading...';
   List<String> _pages = [];
+  List<dynamic> _recentDiaries = [];
+  bool _isLoadingDiaries = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchUserData(); // Ensure it runs after the first frame is built
+      _fetchRecentDiaries(); // Fetch recent diary entries
     });
   }
 
+  // Fetch recent diary entries
+  Future<void> _fetchRecentDiaries() async {
+    try {
+      setState(() {
+        _isLoadingDiaries = true;
+      });
 
- 
+      // Create an instance of DiaryService
+      final diaryService = DiaryService();
 
-  Future<void> _fetchUserData() async { 
+      // Fetch all diary entries
+      final entries = await diaryService.getAllEntries();
+
+      // Sort entries by updated_at or created_at in descending order (newest first)
+      entries.sort((a, b) {
+        final dateA = a.updatedAt ?? a.createdAt ?? a.date;
+        final dateB = b.updatedAt ?? b.createdAt ?? b.date;
+        return dateB.compareTo(dateA);
+      });
+
+      // Take only the 5 most recent entries
+      final recentEntries = entries.take(5).toList();
+
+      // Convert DiaryEntry objects to maps for easier use in the UI
+      final recentDiaries = recentEntries.map((entry) => {
+        'id': entry.id,
+        'title': entry.title,
+        'content': entry.content,
+        'date': entry.date.toIso8601String(),
+        'backgroundColor': entry.backgroundColor,
+        'textColor': entry.textColor,
+        'template': entry.template,
+      }).toList();
+
+      setState(() {
+        _recentDiaries = recentDiaries;
+        _isLoadingDiaries = false;
+      });
+
+      print('Fetched ${_recentDiaries.length} recent diary entries');
+    } catch (e) {
+      print('Error fetching recent diaries: $e');
+      setState(() {
+        _isLoadingDiaries = false;
+      });
+    }
+  }
+
+
+
+
+  Future<void> _fetchUserData() async {
     try {
       // final prefs = await SharedPreferences.getInstance();
       // final token = prefs.getString('access_token');
@@ -78,6 +132,59 @@ void _redirectToLogin() {
   Navigator.pushReplacementNamed(context, '/login'); // Navigate to login page
 }
 
+// Navigate to create a new diary entry
+Future<void> _navigateToNewDiary() async {
+  try {
+    print('Navigating to new diary page');
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NewDiaryPage(),
+      ),
+    );
+
+    if (result != null && mounted) {
+      print('New diary created, refreshing list');
+      await _fetchRecentDiaries(); // Refresh the recent diaries
+    }
+  } catch (e) {
+    print('Error navigating to new diary page: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error creating new diary entry')),
+      );
+    }
+  }
+}
+
+// Navigate to a diary entry
+Future<void> _openDiary(dynamic diary) async {
+  try {
+    print('Opening diary: $diary');
+
+    // Pass the diary map directly (no need to serialize)
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NewDiaryPage(initialData: diary),
+      ),
+    );
+
+    if (result != null && mounted) {
+      print('Diary updated, refreshing list');
+      await _fetchRecentDiaries(); // Refresh the recent diaries
+    }
+  } catch (e) {
+    print('Error opening diary: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error opening diary entry')),
+      );
+    }
+  }
+}
+
 
 
 Future<void> _logout() async {
@@ -88,7 +195,7 @@ Future<void> _logout() async {
 
   // Clear token from LocalStorage (flutter_secure_storage)
   await LocalStorage.clearToken(); // Assuming LocalStorage handles secure storage
-  
+
   // Clear any cached data or pages
   setState(() {
     _fullName = 'Loading...';  // Reset user data
@@ -96,13 +203,13 @@ Future<void> _logout() async {
   });
 
   // Check if token was cleared from LocalStorage
-  String? storedToken = await LocalStorage.getToken(); 
+  String? storedToken = await LocalStorage.getToken();
   print("Token after logout: $storedToken");  // Should print null after logout
 
   // Optionally, check if the token is also cleared from SharedPreferences (for debug purposes)
   String? storedPrefToken = prefs.getString('access_token');
-  print("Token from SharedPreferences after logout: $storedPrefToken"); 
-  
+  print("Token from SharedPreferences after logout: $storedPrefToken");
+
   String? storedPages = prefs.getString('user_pages');
   print("Stored pages after logout: $storedPages");  // Should print null after logout
 
@@ -158,37 +265,154 @@ Future<void> _logout() async {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Recents Section
-                  const Text(
-                    'Recents',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal, // Enable horizontal scrolling
-                    child: Row(
-                      children: List.generate(
-                        4,
-                        (index) => Card(
-                          child: Container(
-                            width: 120, // Set a fixed width for each item
-                            padding: const EdgeInsets.all(16.0),
-                            child: const Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.book,
-                                    color: Color.fromARGB(255, 37, 93, 225)),
-                                SizedBox(height: 8),
-                                Text('Diary', style: TextStyle(fontSize: 14)),
-                              ],
-                            ),
-                          ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Recent Diaries',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                    ),
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/diary');
+                        },
+                        icon: const Icon(Icons.arrow_forward),
+                        label: const Text("View All"),
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF255DE1),
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 10),
+                  _isLoadingDiaries
+                    ? const Center(
+                        child: CircularProgressIndicator(),
+                      )
+                    : _recentDiaries.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No recent diary entries',
+                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                          ),
+                        )
+                      : SingleChildScrollView(
+                          scrollDirection: Axis.horizontal, // Enable horizontal scrolling
+                          child: Row(
+                            children: [
+                              // Add a "New Entry" card at the beginning
+                              Padding(
+                                padding: const EdgeInsets.only(right: 16.0),
+                                child: Card(
+                                  elevation: 2,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  child: InkWell(
+                                    onTap: _navigateToNewDiary,
+                                    child: Container(
+                                      width: 120,
+                                      height: 160,
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Container(
+                                            width: 50,
+                                            height: 50,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFE3F2FD),
+                                              borderRadius: BorderRadius.circular(8),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.grey.withOpacity(0.3),
+                                                  spreadRadius: 1,
+                                                  blurRadius: 2,
+                                                  offset: const Offset(0, 1),
+                                                ),
+                                              ],
+                                            ),
+                                            child: const Center(
+                                              child: Icon(Icons.add_circle_outline, size: 30, color: Color(0xFF255DE1)),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          const Text(
+                                            'New Entry',
+                                            style: TextStyle(fontSize: 14),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              // Generate cards for recent diary entries
+                              ...List.generate(
+                                _recentDiaries.length,
+                                (index) {
+                                  final diary = _recentDiaries[index];
+                                  final date = DateTime.parse(diary['date']);
+
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 16.0),
+                                    child: Card(
+                                      elevation: 2,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      child: InkWell(
+                                        onTap: () => _openDiary(diary),
+                                        child: Container(
+                                          width: 120,
+                                          height: 160,
+                                          padding: const EdgeInsets.all(16.0),
+                                          child: Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Container(
+                                                width: 50,
+                                                height: 50,
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFE3F2FD),
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: Colors.grey.withOpacity(0.3),
+                                                      spreadRadius: 1,
+                                                      blurRadius: 2,
+                                                      offset: const Offset(0, 1),
+                                                    ),
+                                                  ],
+                                                ),
+                                                child: const Center(
+                                                  child: Icon(Icons.auto_stories, size: 30, color: Color(0xFF255DE1)),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                diary['title'] ?? DateFormat('MMM d').format(date),
+                                                style: const TextStyle(fontSize: 14),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                textAlign: TextAlign.center,
+                                              ),
+                                              Text(
+                                                DateFormat('MMM d').format(date),
+                                                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
                   const SizedBox(height: 20),
                   // Upcoming Events Section
                   const Text(
