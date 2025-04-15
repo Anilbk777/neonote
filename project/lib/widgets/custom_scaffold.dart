@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:project/personalScreen/quicknotes.dart';
 import 'package:project/providers/pages_provider.dart';
 import 'package:project/models/page.dart'; // Ensure PageModel is imported
-import 'package:project/personalScreen/diary.dart';
+import 'package:project/personalScreen/diary_page.dart';
 import 'package:project/dashboard.dart';
 import 'package:project/personalScreen/inbox.dart';
 import 'package:project/personalScreen/bin.dart';
@@ -63,7 +63,7 @@ class _CustomScaffoldState extends State<CustomScaffold> {
                       ),
                     ),
                     const Divider(),
-                    _buildSidebarItem(Icons.home, 'Home', DashboardScreen()),
+                    _buildSidebarItem(Icons.home, 'Home', '/dashboard'),
                     _buildSidebarItem(Icons.inbox, 'Inbox', InboxPage()),
                     const Divider(),
                     Padding(
@@ -131,7 +131,7 @@ class _CustomScaffoldState extends State<CustomScaffold> {
     );
   }
 
- Widget _buildSidebarItem(IconData icon, String label, Widget destinationPage) {
+ Widget _buildSidebarItem(IconData icon, String label, dynamic destination) {
   return ListTile(
     leading: Icon(icon, color: Colors.black54),
     title: Text(
@@ -142,19 +142,23 @@ class _CustomScaffoldState extends State<CustomScaffold> {
     onTap: () {
       // Delay navigation until the current frame is complete
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => destinationPage),
-        );
+        if (destination is String) {
+          Navigator.pushNamed(context, destination);
+        } else if (destination is Widget) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => destination),
+          );
+        }
       });
     },
   );
 }
 
-  Widget _getPageByName(String pageName) {
+  dynamic _getPageByName(String pageName) {
     switch (pageName) {
       case 'Diary':
-        return DiaryPage();
+        return '/diary';
       // case 'Quick Notes':
       //   return QuickNotesPage();
       case 'Goals':

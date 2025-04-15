@@ -12,6 +12,7 @@ import 'package:project/personalScreen/content_page.dart';
 import 'package:project/providers/pages_provider.dart';
 import 'package:project/services/diary_service.dart';
 import 'package:project/personalScreen/newPages/Openned_diary.dart';
+import 'package:project/personalScreen/diary_page.dart';
 import 'package:intl/intl.dart';
 
 
@@ -268,12 +269,22 @@ Future<void> _logout() async {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Recent Diaries',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: const [
+                          Icon(
+                            Icons.menu_book,
+                            size: 24,
+                            color: Color(0xFF255DE1),
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Recent Diaries',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                       TextButton.icon(
                         onPressed: () {
@@ -386,7 +397,7 @@ Future<void> _logout() async {
                                                   ],
                                                 ),
                                                 child: const Center(
-                                                  child: Icon(Icons.auto_stories, size: 30, color: Color(0xFF255DE1)),
+                                                  child: Icon(Icons.menu_book, size: 30, color: Color(0xFF255DE1)),
                                                 ),
                                               ),
                                               const SizedBox(height: 8),

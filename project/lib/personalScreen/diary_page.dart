@@ -417,21 +417,34 @@ class _DiaryPageState extends State<DiaryPage> {
       },
       onDismissed: (direction) => _deleteDiary(index),
       child: Card(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         child: ListTile(
           leading: Container(
-            width: 40,
-            height: 40,
+            width: 50,
+            height: 50,
             decoration: BoxDecoration(
-              color: backgroundColor,
-              borderRadius: BorderRadius.circular(8),
+              color: const Color(0xFFE3F2FD), // Light blue background for all icons
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: Colors.grey.shade300,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.3),
+                  spreadRadius: 1,
+                  blurRadius: 2,
+                  offset: const Offset(0, 1),
+                ),
+              ],
             ),
-            child: Icon(
-              Icons.book,
-              color: textColor,
+            child: Center(
+              child: Icon(
+                Icons.menu_book,
+                size: 28,
+                color: const Color(0xFF255DE1), // Fixed blue color for all icons
+              ),
             ),
           ),
           title: Text(
@@ -510,13 +523,13 @@ class _DiaryPageState extends State<DiaryPage> {
                   Row(
                     children: const [
                       Icon(
-                        Icons.book,
+                        Icons.menu_book,
                         size: 24,
                         color: Color(0xFF255DE1),
                       ),
                       SizedBox(width: 8),
                       Text(
-                        "Recent Entries",
+                        "My Diary Entries",
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -536,40 +549,7 @@ class _DiaryPageState extends State<DiaryPage> {
               ),
             ),
 
-            SizedBox(
-              height: 110,
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                scrollDirection: Axis.horizontal,
-                itemCount: diaries.length + 1,
-                itemBuilder: (context, index) => Container(
-                  width: 100,
-                  margin: const EdgeInsets.only(right: 8),
-                  child: _buildRecentDiaryCard(index),
-                ),
-              ),
-            ),
 
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: const [
-                  Icon(
-                    Icons.book,
-                    size: 24,
-                    color: Color(0xFF255DE1),
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    "All Entries",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
 
             Expanded(
               child: isLoading
@@ -579,10 +559,28 @@ class _DiaryPageState extends State<DiaryPage> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(
-                            Icons.book_outlined,
-                            size: 64,
-                            color: Colors.grey[400],
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE3F2FD),
+                              borderRadius: BorderRadius.circular(15),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.grey.withOpacity(0.3),
+                                  spreadRadius: 1,
+                                  blurRadius: 2,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                Icons.menu_book,
+                                size: 48,
+                                color: Color(0xFF255DE1),
+                              ),
+                            ),
                           ),
                           const SizedBox(height: 16),
                           Text(

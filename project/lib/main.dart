@@ -4,50 +4,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart'; // Import FlutterQuillLocalizations
 import 'package:provider/provider.dart';
-import 'login_page.dart';
-import 'register_page.dart';
-import 'dashboard.dart';
 import 'providers/pages_provider.dart';
-import 'package:project/personalScreen/diary_page.dart';
-import 'package:project/services/local_storage.dart';
+import 'app_router.dart';
 
 void main() async {
-  // Check if the user is already logged in
+  // Ensure Flutter is initialized
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Get the initial route based on login status
+  String initialRoute = await AppRouter.getInitialRoute();
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => PagesProvider()..fetchPages()),
       ],
-      child: MyApp(),
+      child: MyApp(initialRoute: initialRoute),
     ),
   );
 }
 
-class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+class MyApp extends StatelessWidget {
+  final String initialRoute;
 
-  @override
-  _MyAppState createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
-  String _initialRoute = '/login';
-
-  @override
-  void initState() {
-    super.initState();
-    _checkLoginStatus();
-  }
-
-  Future<void> _checkLoginStatus() async {
-    // Check if the user is already logged in
-    String? token = await LocalStorage.getToken();
-    if (token != null && token.isNotEmpty) {
-      setState(() {
-        _initialRoute = '/dashboard';
-      });
-    }
-  }
+  const MyApp({super.key, required this.initialRoute});
 
   @override
   Widget build(BuildContext context) {
@@ -66,13 +46,8 @@ class _MyAppState extends State<MyApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      initialRoute: _initialRoute,
-      routes: {
-        '/login': (context) => LoginPage(),
-        '/register': (context) => RegisterPage(),
-        '/dashboard': (context) => DashboardScreen(),
-        '/diary': (context) => DiaryPage(),
-      },
+      initialRoute: initialRoute,
+      onGenerateRoute: AppRouter.generateRoute,
     );
   }
 }

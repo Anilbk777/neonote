@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:project/widgets/custom_scaffold.dart';
 import 'package:project/services/diary_service.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 class NewDiaryPage extends StatefulWidget {
   final Map<String, dynamic>? initialData;
@@ -27,30 +28,15 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
   final TextEditingController _contentController = TextEditingController();
 
   late DateTime _selectedDate = DateTime.now();
-  bool _isReadOnly = false;
-  String _selectedTemplate = 'Default';
+  // Always in edit mode
+  final bool _isReadOnly = false;
   String _selectedPage = 'Diary';
 
   // Added color variables
   Color _backgroundColor = const Color(0xFFFFFFFF); // Default to white
   Color _textColor = const Color(0xFF000000); // Default to black
 
-  // Define mood emojis
-  final Map<String, String> _moodEmojis = {
-    'Happy': '😊',
-    'Sad': '😢',
-    'Excited': '🤩',
-    'Tired': '😴',
-    'Anxious': '😰',
-  };
-
-  // Define template contents
-  final Map<String, String> _templateContents = {
-    'Default': '',
-    'Gratitude': 'Today, I am grateful for...',
-    'Reflection': 'Today I learned...\nI felt...\nTomorrow I will...',
-    'Goals': 'My goals for today are:\n1.\n2.\n3.',
-  };
+  // Removed mood emojis and template contents
 
   // Define color options
   final List<Color> _backgroundColorOptions = [
@@ -75,7 +61,7 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
     const Color(0xFF5D4037), // Brown
   ];
 
-  String _selectedMood = '';
+  // Mood variable removed
 
   @override
   void initState() {
@@ -108,7 +94,54 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
       if (widget.initialData != null) {
         print('Initializing with data: ${widget.initialData}');
 
-        // Handle background color - try both naming conventions
+        // Handle background color initialization
+        try {
+          print('Background color before setting: ${_backgroundColor.value.toRadixString(16)}');
+
+          if (widget.initialData!['background_color'] != null) {
+            int bgColor = widget.initialData!['background_color'];
+            print('Raw background_color value: $bgColor (hex: ${bgColor.toRadixString(16)})');
+
+            // Ensure the color has an alpha channel
+            if (bgColor == 0) {
+              bgColor = 0xFFFFFFFF; // Default to white with alpha
+              print('Background color was 0, defaulting to white with alpha');
+            } else if ((bgColor & 0xFF000000) == 0) {
+              bgColor = bgColor | 0xFF000000; // Add alpha channel if missing
+              print('Added alpha channel to background color: ${bgColor.toRadixString(16)}');
+            }
+
+            _backgroundColor = Color(bgColor);
+            print('Set background color from background_color: $bgColor (hex: ${bgColor.toRadixString(16)})');
+          } else if (widget.initialData!['backgroundColor'] != null) {
+            int bgColor = widget.initialData!['backgroundColor'];
+            print('Raw backgroundColor value: $bgColor (hex: ${bgColor.toRadixString(16)})');
+
+            // Ensure the color has an alpha channel
+            if (bgColor == 0) {
+              bgColor = 0xFFFFFFFF; // Default to white with alpha
+              print('Background color was 0, defaulting to white with alpha');
+            } else if ((bgColor & 0xFF000000) == 0) {
+              bgColor = bgColor | 0xFF000000; // Add alpha channel if missing
+              print('Added alpha channel to background color: ${bgColor.toRadixString(16)}');
+            }
+
+            _backgroundColor = Color(bgColor);
+            print('Set background color from backgroundColor: $bgColor (hex: ${bgColor.toRadixString(16)})');
+          } else {
+            // If no background color is provided, default to white
+            _backgroundColor = const Color(0xFFFFFFFF);
+            print('No background color provided, defaulting to white');
+          }
+
+          print('Final background color: ${_backgroundColor.value.toRadixString(16)}');
+        } catch (e) {
+          print('Error setting background color: $e');
+          _backgroundColor = const Color(0xFFFFFFFF); // Default to white
+          print('Set default background color due to error: ${_backgroundColor.value.toRadixString(16)}');
+        }
+
+        // Handle text color initialization
         try {
           print('Text color before setting: ${_textColor.value.toRadixString(16)}');
 
@@ -192,74 +225,11 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
         }
 
         _selectedDate = DateTime.parse(widget.initialData!['date']);
-        _selectedMood = widget.initialData!['mood'] ?? '';
-        _selectedTemplate = widget.initialData!['template'] ?? 'Default';
       }
     });
   }
 
-  void _changeTemplate(String template) {
-    setState(() {
-      _selectedTemplate = template;
-      _contentController.text = _templateContents[template] ?? '';
-    });
-  }
-
-  void _toggleReadOnlyMode() {
-    setState(() {
-      _isReadOnly = !_isReadOnly;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_isReadOnly ? 'Preview mode enabled' : 'Edit mode enabled'),
-        duration: const Duration(seconds: 1),
-      ),
-    );
-  }
-
-  // New method to set mood emoji
-  void _setMood(String mood) {
-    setState(() {
-      _selectedMood = mood;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Mood set to $mood ${_moodEmojis[mood]}'),
-        duration: const Duration(seconds: 1),
-      ),
-    );
-  }
-
-  // Method to show mood picker
-  void _showMoodPicker() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Choose Mood'),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 300,
-            child: ListView(
-              children: _moodEmojis.entries.map((entry) {
-                return ListTile(
-                  leading: Text(
-                    entry.value,
-                    style: const TextStyle(fontSize: 24),
-                  ),
-                  title: Text(entry.key),
-                  onTap: () {
-                    _setMood(entry.key);
-                    Navigator.of(context).pop();
-                  },
-                );
-              }).toList(),
-            ),
-          ),
-        );
-      },
-    );
-  }
+  // Template and mood selection methods removed
 
   // Method to change background color
   void _changeBackgroundColor(Color color) {
@@ -290,93 +260,157 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
 
     setState(() {
       _textColor = color;
+
+      // Store current selection positions
+      final titleSelection = _titleController.selection;
+      final contentSelection = _contentController.selection;
+
+      // Force rebuild of text fields with preserved selection
+      _titleController.value = TextEditingValue(
+        text: _titleController.text,
+        selection: titleSelection,
+      );
+
+      _contentController.value = TextEditingValue(
+        text: _contentController.text,
+        selection: contentSelection,
+      );
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        duration: const Duration(seconds: 1),
-        backgroundColor: _backgroundColor,
-        content: Text(
-          'Text color updated',
-          style: TextStyle(color: color),
-        ),
-      ),
-    );
-  }
-
-  // Method to show background color picker
-  void _showBackgroundColorPicker() {
+    // Show a sample of the text with the new color
     showDialog(
       context: context,
+      barrierDismissible: true,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Choose Background Color'),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 200,
-            child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
+          title: Text('Text Color Updated', style: TextStyle(color: color)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Your text will now appear in this color:',
+                style: TextStyle(fontSize: 14),
               ),
-              itemCount: _backgroundColorOptions.length,
-              itemBuilder: (context, index) {
-                return GestureDetector(
-                  onTap: () {
-                    _changeBackgroundColor(_backgroundColorOptions[index]);
-                    Navigator.of(context).pop();
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: _backgroundColorOptions[index],
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _backgroundColor,
+                  border: Border.all(color: Colors.grey),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Sample Text',
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: color,
+                    fontWeight: FontWeight.bold,
                   ),
-                );
-              },
-            ),
+                ),
+              ),
+            ],
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
         );
       },
     );
   }
 
-  // Method to show text color picker
-  void _showTextColorPicker() {
+  // Method to show background color picker using flutter_colorpicker
+  void _showBackgroundColorPicker() {
+    Color pickerColor = _backgroundColor;
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Choose Text Color'),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 200,
-            child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-              ),
-              itemCount: _textColorOptions.length,
-              itemBuilder: (context, index) {
-                return GestureDetector(
-                  onTap: () {
-                    _changeTextColor(_textColorOptions[index]);
-                    Navigator.of(context).pop();
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: _textColorOptions[index],
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                );
+          title: const Text('Pick a background color'),
+          content: SingleChildScrollView(
+            child: BlockPicker(
+              pickerColor: pickerColor,
+              onColorChanged: (Color color) {
+                pickerColor = color;
               },
+              availableColors: [
+                Colors.white,
+                Colors.grey[100]!,
+                Colors.grey[200]!,
+                Colors.grey[300]!,
+                Colors.yellow[100]!,
+                Colors.blue[100]!,
+                Colors.green[100]!,
+                Colors.purple[100]!,
+                Colors.red[100]!,
+                Colors.pink[100]!,
+                Colors.orange[100]!,
+                Colors.teal[100]!,
+              ],
             ),
           ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            ElevatedButton(
+              child: const Text('Select'),
+              onPressed: () {
+                _changeBackgroundColor(pickerColor);
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Method to show text color picker using flutter_colorpicker
+  void _showTextColorPicker() {
+    Color pickerColor = _textColor;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Pick a text color'),
+          content: SingleChildScrollView(
+            child: ColorPicker(
+              pickerColor: pickerColor,
+              onColorChanged: (Color color) {
+                pickerColor = color;
+              },
+              pickerAreaHeightPercent: 0.8,
+              enableAlpha: false,
+              displayThumbColor: true,
+              paletteType: PaletteType.hsv,
+              pickerAreaBorderRadius: const BorderRadius.all(Radius.circular(10)),
+              labelTypes: const [ColorLabelType.hex, ColorLabelType.rgb],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            ElevatedButton(
+              child: const Text('Select'),
+              onPressed: () {
+                _changeTextColor(pickerColor);
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
         );
       },
     );
@@ -473,10 +507,10 @@ if (title.isEmpty || content.isEmpty) {
         title: title,
         content: content,
         date: _selectedDate,
-        mood: _selectedMood.isNotEmpty ? _selectedMood : '', // Send an empty string if no mood is selected
+        mood: '', // Mood removed
         backgroundColor: bgColor,
         textColor: txtColor,
-        template: _selectedTemplate,
+        template: 'Default', // Template removed
         // Include any other fields from the original entry
         images: widget.initialData!['images'] != null ?
           (widget.initialData!['images'] as List).map((img) =>
@@ -617,10 +651,10 @@ if (title.isEmpty || content.isEmpty) {
         title: title,
         content: content,
         date: _selectedDate,
-        mood: _selectedMood.isNotEmpty ? _selectedMood : '', // Send an empty string if no mood is selected
+        mood: '', // Mood removed
         backgroundColor: bgColor,
         textColor: txtColor,
-        template: _selectedTemplate,
+        template: 'Default', // Template removed
       );
 
       print('Saving diary: ${diary.toJson()}');
@@ -693,32 +727,7 @@ if (title.isEmpty || content.isEmpty) {
                 ),
               ),
               const Spacer(),
-              // Show selected mood if any
-              if (_selectedMood.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color.fromARGB(255, 251, 251, 251),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color.fromARGB(255, 224, 223, 223)),
-                  ),
-                  child: Row(
-                    children: [
-                      Text(
-                        _moodEmojis[_selectedMood] ?? '🙂',
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        _selectedMood,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              // Mood display removed
             ],
           ),
         ),
@@ -742,6 +751,7 @@ if (title.isEmpty || content.isEmpty) {
                       fontWeight: FontWeight.bold,
                       color: _textColor, // Apply the selected text color
                     ),
+                    cursorColor: _textColor, // Set cursor color to match text color
                     decoration: InputDecoration(
                       hintText: 'Title',
                       border: InputBorder.none,
@@ -751,6 +761,13 @@ if (title.isEmpty || content.isEmpty) {
                       ),
                     ),
                     onChanged: (value) {
+                      setState(() {
+                        // Force rebuild to apply text color to new text
+                        _titleController.value = TextEditingValue(
+                          text: value,
+                          selection: _titleController.selection,
+                        );
+                      });
                       print('Title text changed to: "$value"');
                     },
                   ),
@@ -769,12 +786,20 @@ if (title.isEmpty || content.isEmpty) {
                         height: 1.5,
                         color: _textColor, // Apply the selected text color
                       ),
+                      cursorColor: _textColor, // Set cursor color to match text color
                       decoration: InputDecoration(
                         hintText: 'Write your thoughts here...',
                         border: InputBorder.none,
                         hintStyle: TextStyle(color: _textColor.withOpacity(0.6)),
                       ),
                       onChanged: (value) {
+                        setState(() {
+                          // Force rebuild to apply text color to new text
+                          _contentController.value = TextEditingValue(
+                            text: value,
+                            selection: _contentController.selection,
+                          );
+                        });
                         print('Content text changed to: "${value.substring(0, min(20, value.length))}..."');
                       },
                     ),
@@ -785,70 +810,7 @@ if (title.isEmpty || content.isEmpty) {
           ),
         ),
 
-        // Bottom toolbar with formatting options
-        Container(
-          height: 40,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          color: const Color.fromARGB(255, 244, 243, 243),
-          child: Row(
-            children: [
-              // Template info
-              Text(
-                'Template: $_selectedTemplate',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                ),
-              ),
-              const Spacer(),
-              // Show mood if selected
-              if (_selectedMood.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: Text(
-                    'Mood: ${_moodEmojis[_selectedMood]}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ),
 
-              // Background color indicator
-              Container(
-                margin: const EdgeInsets.only(right: 4),
-                width: 20,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: _backgroundColor,
-                  border: Border.all(color: const Color.fromARGB(255, 163, 162, 162)),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-
-              // Text color indicator
-              Container(
-                margin: const EdgeInsets.only(right: 8),
-                width: 20,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: _textColor,
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-
-              // Edit/Preview mode indicator
-              Text(
-                _isReadOnly ? 'Preview Mode' : 'Edit Mode',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: _isReadOnly ? const Color.fromARGB(255, 253, 160, 1) : const Color.fromARGB(255, 64, 159, 68),
-                ),
-              ),
-            ],
-          ),
-        ),
       ],
     );
 
@@ -865,20 +827,78 @@ if (title.isEmpty || content.isEmpty) {
         appBar: AppBar(
           title: Row(
             children: const [
-              Icon(Icons.auto_stories, size: 24, color: Colors.white),
+              Icon(Icons.menu_book, size: 24, color: Color(0xFF255DE1)),
               SizedBox(width: 8),
               Text('Diary'),
             ],
           ),
          actions: [
+  // Template and mood selection buttons removed
+  // Text Color button - direct access to text color picker
+  IconButton(
+    icon: Stack(
+      alignment: Alignment.center,
+      children: [
+        const Icon(
+          Icons.format_color_text,
+          color: Colors.black,
+          size: 28,
+        ),
+        Positioned(
+          bottom: 0,
+          right: 0,
+          child: Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: _textColor,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 1),
+            ),
+          ),
+        ),
+      ],
+    ),
+    onPressed: _showTextColorPicker,
+    tooltip: 'Text Color',
+  ),
+
+  // Background Color button - direct access to background color picker
+  IconButton(
+    icon: Stack(
+      alignment: Alignment.center,
+      children: [
+        const Icon(
+          Icons.format_color_fill,
+          color: Colors.black,
+          size: 28,
+        ),
+        Positioned(
+          bottom: 0,
+          right: 0,
+          child: Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: _backgroundColor,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 1),
+            ),
+          ),
+        ),
+      ],
+    ),
+    onPressed: _showBackgroundColorPicker,
+    tooltip: 'Background Color',
+  ),
   // Show only the appropriate button based on whether we're editing or creating
   IconButton(
     icon: widget.initialData != null && widget.initialData!['id'] != null
       ? const Icon(Icons.update)
       : const Icon(Icons.save),
-    onPressed: _isReadOnly ? null : (widget.initialData != null && widget.initialData!['id'] != null
+    onPressed: widget.initialData != null && widget.initialData!['id'] != null
       ? _updateSaveDiary
-      : _saveDiary),
+      : _saveDiary,
     tooltip: widget.initialData != null && widget.initialData!['id'] != null
       ? 'Update Diary'
       : 'Save New Diary',
@@ -887,7 +907,7 @@ if (title.isEmpty || content.isEmpty) {
   if (widget.initialData != null && widget.initialData!['id'] != null)
     IconButton(
       icon: const Icon(Icons.delete),
-      onPressed: _isReadOnly ? null : _deleteDiary,
+      onPressed: _deleteDiary,
       tooltip: 'Delete Diary',
     ),
 ],
