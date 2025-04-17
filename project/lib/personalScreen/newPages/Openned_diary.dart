@@ -9,6 +9,8 @@ import 'package:intl/intl.dart';
 import 'package:project/widgets/custom_scaffold.dart';
 import 'package:project/services/diary_service.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'package:flutter_quill/flutter_quill.dart' hide Text;
+import 'package:flutter_quill/src/common/structs/horizontal_spacing.dart';
 
 class NewDiaryPage extends StatefulWidget {
   final Map<String, dynamic>? initialData;
@@ -25,7 +27,12 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
   // Global key for the scaffold messenger
   final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
   final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _contentController = TextEditingController();
+
+  // Quill controller for rich text editing
+  late QuillController _quillController;
+  final FocusNode _focusNode = FocusNode();
+  final ScrollController _scrollController = ScrollController();
+  bool _showToolbar = true; // Show toolbar by default
 
   late DateTime _selectedDate = DateTime.now();
   // Always in edit mode
@@ -73,7 +80,7 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
     // Add a delayed check to see if the controllers have text after initialization
     Future.delayed(Duration(milliseconds: 100), () {
       print('Delayed check - Title controller text: "${_titleController.text}"');
-      print('Delayed check - Content controller text: "${_contentController.text}"');
+      print('Delayed check - Quill controller has content: ${_quillController.document.length > 0}');
     });
   }
 
@@ -82,9 +89,17 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
     setState(() {
       _selectedDate = DateTime.now();
 
-      // Initialize title and content with empty values
+      // Initialize title with empty value
       _titleController.text = '';
-      _contentController.text = '';
+
+      // Initialize quill controller with empty document
+      _quillController = QuillController(
+        document: Document(),
+        selection: const TextSelection.collapsed(offset: 0),
+      );
+
+      // Set read-only mode on the controller
+      _quillController.readOnly = _isReadOnly;
 
       // Initialize colors with default values
       _backgroundColor = const Color(0xFFFFFFFF); // Default to white
@@ -211,17 +226,32 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
 
         if (content != null) {
           final contentStr = content.toString();
-          print('Setting content controller text to: "${contentStr.substring(0, min(20, contentStr.length))}..."');
-          _contentController.text = contentStr;
+          print('Setting quill controller content');
 
-          // Force update the controller
-          _contentController.value = TextEditingValue(
-            text: contentStr,
-            selection: TextSelection.collapsed(offset: contentStr.length),
-          );
+          try {
+            // Try to parse content as Delta JSON
+            final contentJson = json.decode(contentStr);
+            _quillController = QuillController(
+              document: Document.fromJson(contentJson),
+              selection: const TextSelection.collapsed(offset: 0),
+            );
+            _quillController.readOnly = _isReadOnly;
+          } catch (e) {
+            // If parsing fails, treat as plain text
+            print('Failed to parse content as Delta JSON: $e');
+            _quillController = QuillController(
+              document: Document()..insert(0, contentStr),
+              selection: const TextSelection.collapsed(offset: 0),
+            );
+            _quillController.readOnly = _isReadOnly;
+          }
         } else {
-          print('Content was null, using empty string');
-          _contentController.text = '';
+          print('Content was null, using empty document');
+          _quillController = QuillController(
+            document: Document(),
+            selection: const TextSelection.collapsed(offset: 0),
+          );
+          _quillController.readOnly = _isReadOnly;
         }
 
         _selectedDate = DateTime.parse(widget.initialData!['date']);
@@ -263,7 +293,6 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
 
       // Store current selection positions
       final titleSelection = _titleController.selection;
-      final contentSelection = _contentController.selection;
 
       // Force rebuild of text fields with preserved selection
       _titleController.value = TextEditingValue(
@@ -271,10 +300,8 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
         selection: titleSelection,
       );
 
-      _contentController.value = TextEditingValue(
-        text: _contentController.text,
-        selection: contentSelection,
-      );
+      // Rebuild the quill editor with the new text color
+      // This will be applied through the DefaultStyles in the QuillEditor
     });
 
     // Show a sample of the text with the new color
@@ -462,11 +489,11 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
       final diaryService = DiaryService();
       final id = widget.initialData!['id'];
 
-      // Get title and content from controllers
+      // Get title from controller and content from quill controller
       final title = _titleController.text.trim();
-      final content = _contentController.text.trim();
+      final content = jsonEncode(_quillController.document.toDelta().toJson());
       print('Updating diary with title: "$title", length: ${title.length}');
-      print('Updating diary with content: "$content", length: ${content.length}');
+      print('Updating diary with content: Delta JSON');
 
 if (title.isEmpty || content.isEmpty) {
   _scaffoldMessengerKey.currentState?.hideCurrentSnackBar();
@@ -630,11 +657,11 @@ if (title.isEmpty || content.isEmpty) {
       print('Final bgColor: ${bgColor.toRadixString(16)}');
       print('Final txtColor: ${txtColor.toRadixString(16)}');
 
-      // Get title and content from controllers
+      // Get title from controller and content from quill controller
       final title = _titleController.text.trim();
-      final content = _contentController.text.trim();
+      final content = jsonEncode(_quillController.document.toDelta().toJson());
       print('Saving diary with title: "$title", length: ${title.length}');
-      print('Saving diary with content: "$content", length: ${content.length}');
+      print('Saving diary with content: Delta JSON');
 
       // Check if title or content is empty before creating the DiaryEntry object
 if (title.isEmpty || content.isEmpty) {
@@ -684,7 +711,7 @@ if (title.isEmpty || content.isEmpty) {
   Widget build(BuildContext context) {
     // Debug the controller values in build
     print('Build method - Title controller text: "${_titleController.text}"');
-    print('Build method - Content controller text: "${_contentController.text}"');
+    print('Build method - Quill controller has content: ${_quillController.document.length > 0}');
 
     // Main diary content widget
     Widget diaryContent = Column(
@@ -773,35 +800,92 @@ if (title.isEmpty || content.isEmpty) {
                   ),
                   const SizedBox(height: 16),
 
-                  // Content area with text color
+                  // Rich text toolbar
+                  if (_showToolbar)
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: QuillSimpleToolbar(
+                        controller: _quillController,
+                        config: QuillSimpleToolbarConfig(
+                          buttonOptions: const QuillSimpleToolbarButtonOptions(
+                            base: QuillToolbarBaseButtonOptions(
+                              iconTheme: QuillIconTheme(
+                                iconButtonSelectedData: IconButtonData(
+                                  style: ButtonStyle(),
+                                ),
+                                iconButtonUnselectedData: IconButtonData(
+                                  style: ButtonStyle(),
+                                ),
+                              ),
+                            ),
+                          ),
+                          multiRowsDisplay: false,
+                          showFontFamily: false,
+                          showFontSize: true,
+                          showBoldButton: true,
+                          showItalicButton: true,
+                          showSmallButton: false,
+                          showUnderLineButton: true,
+                          showStrikeThrough: true,
+                          showInlineCode: false,
+                          showColorButton: false,
+                          showBackgroundColorButton: false,
+                          showClearFormat: true,
+                          showAlignmentButtons: true,
+                          showLeftAlignment: true,
+                          showCenterAlignment: true,
+                          showRightAlignment: true,
+                          showJustifyAlignment: true,
+                          showHeaderStyle: false,
+                          showListNumbers: true,
+                          showListBullets: true,
+                          showListCheck: true,
+                          showCodeBlock: false,
+                          showQuote: false,
+                          showIndent: true,
+                          showLink: false,
+                          showUndo: true,
+                          showRedo: true,
+                          showDirection: false,
+                          showSearchButton: false,
+                          showSubscript: false,
+                          showSuperscript: false,
+                        ),
+                      ),
+                    ),
+
+                  // Content area with rich text editor
                   Expanded(
-                    child: TextField(
-                      key: const Key('contentField'),
-                      controller: _contentController,
-                      readOnly: _isReadOnly,
-                      maxLines: null,
-                      expands: true,
-                      style: TextStyle(
-                        fontSize: 16,
-                        height: 1.5,
-                        color: _textColor, // Apply the selected text color
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: QuillEditor(
+                        controller: _quillController,
+                        scrollController: _scrollController,
+                        focusNode: _focusNode,
+                        config: QuillEditorConfig(
+                          // readOnly is set on the controller, not in the config
+                          placeholder: 'Write your thoughts here...',
+                          padding: const EdgeInsets.all(0),
+                          autoFocus: false,
+                          expands: true,
+                          scrollable: true,
+                          keyboardAppearance: Brightness.light,
+                          enableInteractiveSelection: true,
+                          customStyles: DefaultStyles(
+                            paragraph: DefaultTextBlockStyle(
+                              TextStyle(
+                                fontSize: 16,
+                                height: 1.5,
+                                color: _textColor,
+                              ),
+                              const HorizontalSpacing(0, 0),  // horizontalSpacing
+                              const VerticalSpacing(0, 0),    // verticalSpacing
+                              const VerticalSpacing(0, 0),    // lineSpacing
+                              null,                           // decoration
+                            ),
+                          ),
+                        ),
                       ),
-                      cursorColor: _textColor, // Set cursor color to match text color
-                      decoration: InputDecoration(
-                        hintText: 'Write your thoughts here...',
-                        border: InputBorder.none,
-                        hintStyle: TextStyle(color: _textColor.withOpacity(0.6)),
-                      ),
-                      onChanged: (value) {
-                        setState(() {
-                          // Force rebuild to apply text color to new text
-                          _contentController.value = TextEditingValue(
-                            text: value,
-                            selection: _contentController.selection,
-                          );
-                        });
-                        print('Content text changed to: "${value.substring(0, min(20, value.length))}..."');
-                      },
                     ),
                   ),
                 ],
@@ -834,33 +918,15 @@ if (title.isEmpty || content.isEmpty) {
           ),
          actions: [
   // Template and mood selection buttons removed
-  // Text Color button - direct access to text color picker
+  // Toggle toolbar button
   IconButton(
-    icon: Stack(
-      alignment: Alignment.center,
-      children: [
-        const Icon(
-          Icons.format_color_text,
-          color: Colors.black,
-          size: 28,
-        ),
-        Positioned(
-          bottom: 0,
-          right: 0,
-          child: Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(
-              color: _textColor,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 1),
-            ),
-          ),
-        ),
-      ],
-    ),
-    onPressed: _showTextColorPicker,
-    tooltip: 'Text Color',
+    icon: Icon(_showToolbar ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down),
+    onPressed: () {
+      setState(() {
+        _showToolbar = !_showToolbar;
+      });
+    },
+    tooltip: _showToolbar ? 'Hide formatting' : 'Show formatting',
   ),
 
   // Background Color button - direct access to background color picker
@@ -923,7 +989,9 @@ if (title.isEmpty || content.isEmpty) {
   @override
   void dispose() {
     _titleController.dispose();
-    _contentController.dispose();
+    _quillController.dispose();
+    _focusNode.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 }
