@@ -38,7 +38,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchUserData(); // Ensure it runs after the first frame is built
       _fetchRecentDiaries(); // Fetch recent diary entries
+      _fetchUserPages(); // Fetch user's content pages
     });
+  }
+
+  // Fetch user's content pages
+  Future<void> _fetchUserPages() async {
+    try {
+      // Access the PagesProvider and fetch pages
+      final pagesProvider = Provider.of<PagesProvider>(context, listen: false);
+      await pagesProvider.fetchPages();
+      print('✅ User pages fetched successfully');
+    } catch (e) {
+      print('❌ Error fetching user pages: $e');
+    }
   }
 
   // Fetch recent diary entries
@@ -203,6 +216,10 @@ Future<void> _logout() async {
     _pages = [];  // Clear cached pages or session data
   });
 
+  // Clear in-memory data using provider
+  Provider.of<PagesProvider>(context, listen: false).clearPages();
+  print('✅ Cleared pages from PagesProvider');
+
   // Check if token was cleared from LocalStorage
   String? storedToken = await LocalStorage.getToken();
   print("Token after logout: $storedToken");  // Should print null after logout
@@ -213,8 +230,6 @@ Future<void> _logout() async {
 
   String? storedPages = prefs.getString('user_pages');
   print("Stored pages after logout: $storedPages");  // Should print null after logout
-
-  // Clear in-memory data if using provider (ensure your PagesProvider has a clearPages method)
 
   // Redirect to login page
   _redirectToLogin();

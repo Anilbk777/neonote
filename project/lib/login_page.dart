@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-// import 'package:project/dashboard.dart';
 import 'package:project/register_page.dart';
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:project/services/local_storage.dart';
 import 'package:project/services/api_service.dart';
-
 import 'package:project/models/page.dart';
+import 'package:provider/provider.dart';
+import 'package:project/providers/pages_provider.dart';
 
 
 
@@ -57,17 +57,27 @@ class _LoginPageState extends State<LoginPage> {
     await LocalStorage.saveToken(data['access']);
     String? storedToken = await LocalStorage.getToken();
     print("✅ Token retrieved after login: $storedToken");
-     
 
-    
 
-    
+
+
+
     if (storedToken != null) {
       print("✅ Token successfully retrieved after saving!");
+
+      // Initialize the PagesProvider by fetching pages
+      try {
+        final pagesProvider = Provider.of<PagesProvider>(context, listen: false);
+        await pagesProvider.fetchPages();
+        print("✅ Pages fetched successfully after login");
+      } catch (e) {
+        print("⚠️ Error fetching pages after login: $e");
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Login successful')),
       );
-      
+
       // Redirect to dashboard
       Navigator.pushReplacementNamed(context, '/dashboard');
     } else {
@@ -81,7 +91,7 @@ class _LoginPageState extends State<LoginPage> {
       SnackBar(content: Text('Login failed: ${response.body}')),
     );
   }
- 
+
 }
 
 

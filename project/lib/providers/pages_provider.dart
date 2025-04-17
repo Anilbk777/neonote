@@ -44,6 +44,12 @@ class PagesProvider extends ChangeNotifier {
     await _apiService.deletePage(id);
     await fetchPages();
   }
+
+  // Add a method to clear pages
+  void clearPages() {
+    _pages = [];
+    notifyListeners();
+  }
 }
 
 

@@ -37,6 +37,27 @@ class _CustomScaffoldState extends State<CustomScaffold> {
   List<String> personalSpacePages = ['Diary',  'Goals', 'Task List'];
 
   @override
+  void initState() {
+    super.initState();
+    // Fetch pages when the scaffold is first created
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchPages();
+    });
+  }
+
+  // Fetch user's content pages
+  Future<void> _fetchPages() async {
+    try {
+      // Access the PagesProvider and fetch pages
+      final pagesProvider = Provider.of<PagesProvider>(context, listen: false);
+      await pagesProvider.fetchPages();
+      print('✅ Pages fetched successfully in CustomScaffold');
+    } catch (e) {
+      print('⚠️ Error fetching pages in CustomScaffold: $e');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       floatingActionButton: widget.floatingActionButton,
