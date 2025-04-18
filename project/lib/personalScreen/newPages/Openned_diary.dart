@@ -68,16 +68,6 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
     const Color(0xFFFCE4EC), // Light Pink
   ];
 
-  final List<Color> _textColorOptions = [
-    const Color(0xFF000000), // Black
-    const Color(0xFF424242), // Dark Gray
-    const Color(0xFF1976D2), // Blue
-    const Color(0xFF388E3C), // Green
-    const Color(0xFF7B1FA2), // Purple
-    const Color(0xFFD32F2F), // Red
-    const Color(0xFFFF6F00), // Orange
-    const Color(0xFF5D4037), // Brown
-  ];
 
   // Mood variable removed
 
@@ -87,6 +77,9 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
     print('NewDiaryPage initState called');
     print('Initial widget.initialData: ${widget.initialData}');
     _initializeData();
+
+    // Setup the QuillController to handle formatting changes
+    _setupQuillController();
 
     // Add a delayed check to see if the controllers have text after initialization
     Future.delayed(Duration(milliseconds: 100), () {
@@ -107,6 +100,7 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
       _quillController = QuillController(
         document: Document(),
         selection: const TextSelection.collapsed(offset: 0),
+        keepStyleOnNewLine: true, // Keep formatting when creating new lines
       );
 
       // Set read-only mode on the controller
@@ -245,6 +239,7 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
             _quillController = QuillController(
               document: Document.fromJson(contentJson),
               selection: const TextSelection.collapsed(offset: 0),
+              keepStyleOnNewLine: true, // Keep formatting when creating new lines
             );
             _quillController.readOnly = _isReadOnly;
           } catch (e) {
@@ -253,6 +248,7 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
             _quillController = QuillController(
               document: Document()..insert(0, contentStr),
               selection: const TextSelection.collapsed(offset: 0),
+              keepStyleOnNewLine: true, // Keep formatting when creating new lines
             );
             _quillController.readOnly = _isReadOnly;
           }
@@ -261,6 +257,7 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
           _quillController = QuillController(
             document: Document(),
             selection: const TextSelection.collapsed(offset: 0),
+            keepStyleOnNewLine: true, // Keep formatting when creating new lines
           );
           _quillController.readOnly = _isReadOnly;
         }
@@ -299,6 +296,7 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
 
     print('Changing text color to: ${color.value.toRadixString(16)}');
 
+    // Set as the default text color for future text
     setState(() {
       _textColor = color;
 
@@ -310,9 +308,6 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
         text: _titleController.text,
         selection: titleSelection,
       );
-
-      // Rebuild the quill editor with the new text color
-      // This will be applied through the DefaultStyles in the QuillEditor
     });
 
     // Show a sample of the text with the new color
@@ -321,13 +316,13 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
       barrierDismissible: true,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Text Color Updated', style: TextStyle(color: color)),
+          title: Text('Default Text Color Updated', style: TextStyle(color: color)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Your text will now appear in this color:',
+                'New text will appear in this color:',
                 style: TextStyle(fontSize: 14),
               ),
               const SizedBox(height: 16),
@@ -346,6 +341,11 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'To apply color to existing text, use the color picker in the toolbar.',
+                style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
               ),
             ],
           ),
@@ -452,6 +452,22 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
         );
       },
     );
+  }
+
+  // Note: We're using the built-in QuillToolbar for text formatting
+  // This provides all the necessary formatting options like bold, italic, underline,
+  // strikethrough, font size, text color, alignment, headings, and lists.
+
+  // Add a listener to the QuillController to handle formatting changes
+  void _setupQuillController() {
+    // Add a listener to the controller to handle formatting changes
+    _quillController.addListener(() {
+      // This ensures that when a formatting option is selected,
+      // it will be applied to new text that is typed
+      setState(() {
+        // Force a rebuild to apply the current formatting
+      });
+    });
   }
 
   // Method to pick and embed an image
@@ -892,62 +908,48 @@ if (title.isEmpty || content.isEmpty) {
                   ),
                   const SizedBox(height: 16),
 
-                  // Rich text toolbar
+                  // Updated Rich text toolbar
                   if (_showToolbar)
                     Container(
                       padding: const EdgeInsets.symmetric(vertical: 8.0),
                       child: QuillSimpleToolbar(
                         controller: _quillController,
                         config: QuillSimpleToolbarConfig(
-                          buttonOptions: const QuillSimpleToolbarButtonOptions(
-                            base: QuillToolbarBaseButtonOptions(
-                              iconTheme: QuillIconTheme(
-                                iconButtonSelectedData: IconButtonData(
-                                  style: ButtonStyle(),
-                                ),
-                                iconButtonUnselectedData: IconButtonData(
-                                  style: ButtonStyle(),
-                                ),
-                              ),
-                            ),
-                          ),
-                          multiRowsDisplay: false,
-                          showFontFamily: false,
+                          // Enable all formatting options for MS Word-like experience
+                          multiRowsDisplay: true,
+                          showFontFamily: true,
                           showFontSize: true,
                           showBoldButton: true,
                           showItalicButton: true,
-                          showSmallButton: false,
                           showUnderLineButton: true,
                           showStrikeThrough: true,
-                          showInlineCode: false,
-                          showColorButton: false,
-                          showBackgroundColorButton: false,
+                          showInlineCode: true,
+                          showColorButton: true,
+                          showBackgroundColorButton: true,
                           showClearFormat: true,
                           showAlignmentButtons: true,
-                          showLeftAlignment: true,
-                          showCenterAlignment: true,
-                          showRightAlignment: true,
-                          showJustifyAlignment: true,
-                          showHeaderStyle: false,
+                          showHeaderStyle: true,
                           showListNumbers: true,
                           showListBullets: true,
                           showListCheck: true,
-                          showCodeBlock: false,
-                          showQuote: false,
+                          showCodeBlock: true,
+                          showQuote: true,
                           showIndent: true,
-                          showLink: false,
-                          showUndo: true,
-                          showRedo: true,
-                          showDirection: false,
-                          showSearchButton: false,
-                          showSubscript: false,
-                          showSuperscript: false,
-                          // Add embed buttons for images
+                          showLink: true,
+                          // Enable image embedding in the toolbar
                           embedButtons: FlutterQuillEmbeds.toolbarButtons(),
+                          // Custom button options to ensure formatting is applied to new text
+                          buttonOptions: QuillSimpleToolbarButtonOptions(
+                            base: QuillToolbarBaseButtonOptions(
+                              afterButtonPressed: () {
+                                // Force focus on the editor after a button is pressed
+                                _focusNode.requestFocus();
+                              },
+                            ),
+                          ),
                         ),
                       ),
                     ),
-
                   // Content area with rich text editor
                   Expanded(
                     child: Container(
@@ -960,11 +962,16 @@ if (title.isEmpty || content.isEmpty) {
                           // readOnly is set on the controller, not in the config
                           placeholder: 'Write your thoughts here...',
                           padding: const EdgeInsets.all(0),
-                          autoFocus: false,
+                          // Set autoFocus to true to ensure the editor receives focus
+                          // This helps with applying formatting to new text
+                          autoFocus: true,
                           expands: true,
                           scrollable: true,
                           keyboardAppearance: Brightness.light,
                           enableInteractiveSelection: true,
+                          // Enable retaining formatting when typing new text
+                          // This makes the toolbar buttons work for new text
+                          // Use default styles for simplicity and compatibility
                           customStyles: DefaultStyles(
                             paragraph: DefaultTextBlockStyle(
                               TextStyle(
@@ -978,7 +985,7 @@ if (title.isEmpty || content.isEmpty) {
                               null,                           // decoration
                             ),
                           ),
-                          // Add embedBuilders for images with fixed size
+                          // Configure embedBuilders to handle images with fixed size
                           embedBuilders: FlutterQuillEmbeds.editorBuilders(
                             imageEmbedConfig: QuillEditorImageEmbedConfig(
                               imageProviderBuilder: (context, imageSource) {

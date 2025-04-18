@@ -158,8 +158,14 @@
 
 
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter_quill/flutter_quill.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_quill/flutter_quill.dart' hide Text;
+import 'package:flutter_quill/src/common/structs/horizontal_spacing.dart';
+import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:provider/provider.dart';
@@ -183,6 +189,14 @@ class _ContentPageState extends State<ContentPage> {
   // Add a text editing controller for the title
   final TextEditingController _titleController = TextEditingController();
   bool _isEditingTitle = false;
+  bool _showToolbar = true; // Show toolbar by default
+
+  // Image picker
+  final ImagePicker _imagePicker = ImagePicker();
+
+  // Fixed image size for embedded images
+  final double _fixedImageWidth = 300.0;
+  final double _fixedImageHeight = 200.0;
 
 
   void _openUrl(String url) async {
@@ -218,6 +232,67 @@ class _ContentPageState extends State<ContentPage> {
     );
   }
 
+  // Add a listener to the QuillController to handle formatting changes
+  void _setupQuillController() {
+    // Add a listener to the controller to handle formatting changes
+    _quillController.addListener(() {
+      // This ensures that when a formatting option is selected,
+      // it will be applied to new text that is typed
+      setState(() {
+        // Force a rebuild to apply the current formatting
+      });
+    });
+  }
+
+  // Method to pick and embed an image
+  Future<void> _pickAndEmbedImage() async {
+    try {
+      final XFile? pickedImage = await _imagePicker.pickImage(source: ImageSource.gallery);
+
+      if (pickedImage == null) {
+        print('No image selected');
+        return;
+      }
+
+      String imageSource;
+
+      if (kIsWeb) {
+        // For web, we need to use a data URL
+        final bytes = await pickedImage.readAsBytes();
+        final base64Image = base64Encode(bytes);
+        final mimeType = pickedImage.mimeType ?? 'image/jpeg';
+        imageSource = 'data:$mimeType;base64,$base64Image';
+        print('Web image source: data URL (truncated for brevity)');
+      } else {
+        // For mobile, we can use the file path
+        imageSource = pickedImage.path;
+        print('Mobile image source: $imageSource');
+      }
+
+      // Create a custom embed for the image with fixed size
+      final index = _quillController.selection.baseOffset;
+      final length = _quillController.selection.extentOffset - index;
+
+      // Insert the image at the current cursor position
+      _quillController.replaceText(
+        index,
+        length,
+        BlockEmbed.image(imageSource),
+        null, // TextSelection parameter should be null or a valid TextSelection object
+      );
+
+      // Show a success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Image added successfully')),
+      );
+    } catch (e) {
+      print('Error picking image: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error adding image: $e')),
+      );
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -232,7 +307,11 @@ class _ContentPageState extends State<ContentPage> {
     _quillController = QuillController(
       document: doc,
       selection: const TextSelection.collapsed(offset: 0),
+      keepStyleOnNewLine: true, // Keep formatting when creating new lines
     );
+
+    // Setup the QuillController to handle formatting changes
+    _setupQuillController();
 
     // Initialize the title controller with the current page title
     _titleController.text = widget.page.title;
@@ -303,9 +382,22 @@ class _ContentPageState extends State<ContentPage> {
                 ],
               ),
           actions: [
+            // Toggle toolbar button
+            IconButton(
+              icon: Icon(_showToolbar ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down),
+              onPressed: () {
+                setState(() {
+                  _showToolbar = !_showToolbar;
+                });
+              },
+              tooltip: _showToolbar ? 'Hide formatting' : 'Show formatting',
+            ),
+
+            // Save button
             IconButton(
               icon: const Icon(Icons.save),
               onPressed: _saveContent,
+              tooltip: 'Save Content',
             ),
           ],
         ),
@@ -313,8 +405,48 @@ class _ContentPageState extends State<ContentPage> {
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
-              // Display the Quill toolbar.
-              QuillSimpleToolbar(controller: _quillController),
+              // Display the Quill toolbar if showToolbar is true
+              if (_showToolbar)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: QuillSimpleToolbar(
+                    controller: _quillController,
+                    config: QuillSimpleToolbarConfig(
+                      // Enable all formatting options for MS Word-like experience
+                      multiRowsDisplay: true,
+                      showFontFamily: true,
+                      showFontSize: true,
+                      showBoldButton: true,
+                      showItalicButton: true,
+                      showUnderLineButton: true,
+                      showStrikeThrough: true,
+                      showInlineCode: true,
+                      showColorButton: true,
+                      showBackgroundColorButton: true,
+                      showClearFormat: true,
+                      showAlignmentButtons: true,
+                      showHeaderStyle: true,
+                      showListNumbers: true,
+                      showListBullets: true,
+                      showListCheck: true,
+                      showCodeBlock: true,
+                      showQuote: true,
+                      showIndent: true,
+                      showLink: true,
+                      // Enable image embedding in the toolbar
+                      embedButtons: FlutterQuillEmbeds.toolbarButtons(),
+                      // Custom button options to ensure formatting is applied to new text
+                      buttonOptions: QuillSimpleToolbarButtonOptions(
+                        base: QuillToolbarBaseButtonOptions(
+                          afterButtonPressed: () {
+                            // Force focus on the editor after a button is pressed
+                            _focusNode.requestFocus();
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               const SizedBox(height: 8),
               // Display the Quill editor.
               Expanded(
@@ -333,10 +465,58 @@ class _ContentPageState extends State<ContentPage> {
                     controller: _quillController,
                     focusNode: _focusNode,
                     scrollController: _scrollController,
-                    // expands: false,
-                    //  padding: const EdgeInsets.all(1),
-                    config: const QuillEditorConfig(
+                    config: QuillEditorConfig(
                       placeholder: "Enter page content here...",
+                      padding: const EdgeInsets.all(0),
+                      // Set autoFocus to true to ensure the editor receives focus
+                      // This helps with applying formatting to new text
+                      autoFocus: true,
+                      expands: true,
+                      scrollable: true,
+                      keyboardAppearance: Brightness.light,
+                      enableInteractiveSelection: true,
+                      // Enable retaining formatting when typing new text
+                      // This makes the toolbar buttons work for new text
+                      // Configure embedBuilders to handle images with fixed size
+                      embedBuilders: FlutterQuillEmbeds.editorBuilders(
+                        imageEmbedConfig: QuillEditorImageEmbedConfig(
+                          imageProviderBuilder: (context, imageSource) {
+                            if (imageSource.startsWith('http') && !imageSource.startsWith('blob:http')) {
+                              // Regular network image (not blob)
+                              return NetworkImage(imageSource);
+                            } else if (imageSource.startsWith('data:')) {
+                              // Data URL (for web)
+                              return MemoryImage(Uri.parse(imageSource).data!.contentAsBytes());
+                            } else if (imageSource.startsWith('blob:')) {
+                              // Blob URL (for web)
+                              print('Blob URL detected: $imageSource');
+                              try {
+                                // Attempt to load the placeholder asset
+                                return const AssetImage('assets/images/image_placeholder.png');
+                              } catch (e) {
+                                print('Error loading placeholder image: $e');
+                                // Fallback to a default color or another placeholder
+                                return MemoryImage(Uint8List(0)); // Empty image
+                              }
+                            } else if (kIsWeb) {
+                              // For web, we can't use FileImage, so we'll use an asset image as a fallback
+                              print('Warning: Unsupported image source on web: $imageSource');
+                              return const AssetImage('assets/images/image_placeholder.png');
+                            } else if (imageSource.startsWith('file:')) {
+                              // File URI (for mobile)
+                              return FileImage(File(imageSource.replaceFirst('file:', '')));
+                            } else {
+                              // Local file path (for mobile)
+                              return FileImage(File(imageSource));
+                            }
+                          },
+                          // Callback when an image is removed
+                          onImageRemovedCallback: (imageSource) async {
+                            print('Image removed: $imageSource');
+                            return; // Return a completed Future<void>
+                          },
+                        ),
+                      ),
                     ),
                   ),
                 ),
