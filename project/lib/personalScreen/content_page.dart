@@ -167,6 +167,7 @@ import 'package:flutter_quill/src/common/structs/horizontal_spacing.dart';
 import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 import 'package:provider/provider.dart';
 import 'package:project/models/page.dart';
@@ -197,6 +198,9 @@ class _ContentPageState extends State<ContentPage> {
   // Fixed image size for embedded images
   final double _fixedImageWidth = 300.0;
   final double _fixedImageHeight = 200.0;
+
+  // Background color for the content
+  Color _backgroundColor = const Color(0xFFFFFFFF); // Default to white
 
 
   void _openUrl(String url) async {
@@ -242,6 +246,74 @@ class _ContentPageState extends State<ContentPage> {
         // Force a rebuild to apply the current formatting
       });
     });
+  }
+
+  // Method to change background color
+  void _changeBackgroundColor(Color color) {
+    setState(() {
+      _backgroundColor = color;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 1),
+        content: Text(
+          'Background color updated',
+          style: const TextStyle(color: Colors.black),
+        ),
+        backgroundColor: color,
+      ),
+    );
+  }
+
+  // Method to show background color picker using flutter_colorpicker
+  void _showBackgroundColorPicker() {
+    Color pickerColor = _backgroundColor;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Pick a background color'),
+          content: SingleChildScrollView(
+            child: BlockPicker(
+              pickerColor: pickerColor,
+              onColorChanged: (Color color) {
+                pickerColor = color;
+              },
+              availableColors: [
+                Colors.white,
+                Colors.grey[100]!,
+                Colors.grey[200]!,
+                Colors.grey[300]!,
+                Colors.yellow[100]!,
+                Colors.blue[100]!,
+                Colors.green[100]!,
+                Colors.purple[100]!,
+                Colors.red[100]!,
+                Colors.pink[100]!,
+                Colors.orange[100]!,
+                Colors.teal[100]!,
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            ElevatedButton(
+              child: const Text('Select'),
+              onPressed: () {
+                _changeBackgroundColor(pickerColor);
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   // Method to pick and embed an image
@@ -297,11 +369,35 @@ class _ContentPageState extends State<ContentPage> {
   void initState() {
     super.initState();
     Document doc;
+    String content = widget.page.content;
 
+    // Try to parse the content as a JSON object with metadata
     try {
-      doc = Document.fromJson(jsonDecode(widget.page.content));
+      Map<String, dynamic> contentData = jsonDecode(content);
+      if (contentData.containsKey('content') && contentData.containsKey('metadata')) {
+        // Extract the actual content and metadata
+        String actualContent = contentData['content'];
+        Map<String, dynamic> metadata = contentData['metadata'];
+
+        // Set the background color if available
+        if (metadata.containsKey('backgroundColor')) {
+          int bgColorValue = metadata['backgroundColor'];
+          _backgroundColor = Color(bgColorValue);
+        }
+
+        // Update the content to just the actual content part
+        content = actualContent;
+      }
     } catch (e) {
-      doc = Document()..insert(0, widget.page.content);
+      // If parsing fails, just use the content as is
+      print('Failed to parse content with metadata: $e');
+    }
+
+    // Now parse the actual content for the document
+    try {
+      doc = Document.fromJson(jsonDecode(content));
+    } catch (e) {
+      doc = Document()..insert(0, content);
     }
 
     _quillController = QuillController(
@@ -320,8 +416,20 @@ class _ContentPageState extends State<ContentPage> {
   void _saveContent() {
     // Encode the current document as Delta JSON.
     String updatedContent = jsonEncode(_quillController.document.toDelta().toJson());
+
+    // Create a map to store additional metadata
+    Map<String, dynamic> metadata = {
+      'backgroundColor': _backgroundColor.value,
+    };
+
+    // Add metadata to the content
+    String contentWithMetadata = jsonEncode({
+      'content': updatedContent,
+      'metadata': metadata,
+    });
+
     Provider.of<PagesProvider>(context, listen: false)
-        .updatePage(widget.page.id, _titleController.text, updatedContent)
+        .updatePage(widget.page.id, _titleController.text, contentWithMetadata)
         .then((_) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text("Content saved")));
@@ -393,6 +501,35 @@ class _ContentPageState extends State<ContentPage> {
               tooltip: _showToolbar ? 'Hide formatting' : 'Show formatting',
             ),
 
+            // Background Color button - direct access to background color picker
+            IconButton(
+              icon: Stack(
+                alignment: Alignment.center,
+                children: [
+                  const Icon(
+                    Icons.format_color_fill,
+                    color: Colors.black,
+                    size: 28,
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: _backgroundColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              onPressed: _showBackgroundColorPicker,
+              tooltip: 'Background Color',
+            ),
+
             // Save button
             IconButton(
               icon: const Icon(Icons.save),
@@ -401,127 +538,141 @@ class _ContentPageState extends State<ContentPage> {
             ),
           ],
         ),
-        body: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              // Display the Quill toolbar if showToolbar is true
-              if (_showToolbar)
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: QuillSimpleToolbar(
-                    controller: _quillController,
-                    config: QuillSimpleToolbarConfig(
-                      // Enable all formatting options for MS Word-like experience
-                      multiRowsDisplay: true,
-                      showFontFamily: true,
-                      showFontSize: true,
-                      showBoldButton: true,
-                      showItalicButton: true,
-                      showUnderLineButton: true,
-                      showStrikeThrough: true,
-                      showInlineCode: true,
-                      showColorButton: true,
-                      showBackgroundColorButton: true,
-                      showClearFormat: true,
-                      showAlignmentButtons: true,
-                      showHeaderStyle: true,
-                      showListNumbers: true,
-                      showListBullets: true,
-                      showListCheck: true,
-                      showCodeBlock: true,
-                      showQuote: true,
-                      showIndent: true,
-                      showLink: true,
-                      // Enable image embedding in the toolbar
-                      embedButtons: FlutterQuillEmbeds.toolbarButtons(),
-                      // Custom button options to ensure formatting is applied to new text
-                      buttonOptions: QuillSimpleToolbarButtonOptions(
-                        base: QuillToolbarBaseButtonOptions(
-                          afterButtonPressed: () {
-                            // Force focus on the editor after a button is pressed
-                            _focusNode.requestFocus();
-                          },
+        body: Container(
+          color: _backgroundColor, // Apply the selected background color
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                // Display the Quill toolbar if showToolbar is true
+                if (_showToolbar)
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    decoration: const BoxDecoration(
+                      color: Colors.white, // White background for toolbar
+                      borderRadius: BorderRadius.all(Radius.circular(8.0)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 3.0,
+                          offset: Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: QuillSimpleToolbar(
+                      controller: _quillController,
+                      config: QuillSimpleToolbarConfig(
+                        // Enable all formatting options for MS Word-like experience
+                        multiRowsDisplay: true,
+                        showFontFamily: true,
+                        showFontSize: true,
+                        showBoldButton: true,
+                        showItalicButton: true,
+                        showUnderLineButton: true,
+                        showStrikeThrough: true,
+                        showInlineCode: true,
+                        showColorButton: true,
+                        showBackgroundColorButton: false, // Disabled background color in toolbar
+                        showClearFormat: true,
+                        showAlignmentButtons: true,
+                        showHeaderStyle: true,
+                        showListNumbers: true,
+                        showListBullets: true,
+                        showListCheck: true,
+                        showCodeBlock: true,
+                        showQuote: true,
+                        showIndent: true,
+                        showLink: true,
+                        // Enable image embedding in the toolbar
+                        embedButtons: FlutterQuillEmbeds.toolbarButtons(),
+                        // Custom button options to ensure formatting is applied to new text
+                        buttonOptions: QuillSimpleToolbarButtonOptions(
+                          base: QuillToolbarBaseButtonOptions(
+                            afterButtonPressed: () {
+                              // Force focus on the editor after a button is pressed
+                              _focusNode.requestFocus();
+                            },
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              const SizedBox(height: 8),
-              // Display the Quill editor.
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    final selection = _quillController.selection;
-                    final text = _quillController.document.getPlainText(selection.baseOffset, selection.extentOffset);
+                const SizedBox(height: 8),
+                // Display the Quill editor.
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      final selection = _quillController.selection;
+                      final text = _quillController.document.getPlainText(selection.baseOffset, selection.extentOffset);
 
-                    // Check if the tapped text is a valid URL
-                    final uri = Uri.tryParse(text);
-                    if (uri != null && uri.hasAbsolutePath) {
-                      _openUrl(text); // Open URL in browser
-                    }
-                  },
-                  child: QuillEditor(
-                    controller: _quillController,
-                    focusNode: _focusNode,
-                    scrollController: _scrollController,
-                    config: QuillEditorConfig(
-                      placeholder: "Enter page content here...",
-                      padding: const EdgeInsets.all(0),
-                      // Set autoFocus to true to ensure the editor receives focus
-                      // This helps with applying formatting to new text
-                      autoFocus: true,
-                      expands: true,
-                      scrollable: true,
-                      keyboardAppearance: Brightness.light,
-                      enableInteractiveSelection: true,
-                      // Enable retaining formatting when typing new text
-                      // This makes the toolbar buttons work for new text
-                      // Configure embedBuilders to handle images with fixed size
-                      embedBuilders: FlutterQuillEmbeds.editorBuilders(
-                        imageEmbedConfig: QuillEditorImageEmbedConfig(
-                          imageProviderBuilder: (context, imageSource) {
-                            if (imageSource.startsWith('http') && !imageSource.startsWith('blob:http')) {
-                              // Regular network image (not blob)
-                              return NetworkImage(imageSource);
-                            } else if (imageSource.startsWith('data:')) {
-                              // Data URL (for web)
-                              return MemoryImage(Uri.parse(imageSource).data!.contentAsBytes());
-                            } else if (imageSource.startsWith('blob:')) {
-                              // Blob URL (for web)
-                              print('Blob URL detected: $imageSource');
-                              try {
-                                // Attempt to load the placeholder asset
+                      // Check if the tapped text is a valid URL
+                      final uri = Uri.tryParse(text);
+                      if (uri != null && uri.hasAbsolutePath) {
+                        _openUrl(text); // Open URL in browser
+                      }
+                    },
+                    child: QuillEditor(
+                      controller: _quillController,
+                      focusNode: _focusNode,
+                      scrollController: _scrollController,
+                      config: QuillEditorConfig(
+                        placeholder: "Enter page content here...",
+                        padding: const EdgeInsets.all(0),
+                        // Set autoFocus to true to ensure the editor receives focus
+                        // This helps with applying formatting to new text
+                        autoFocus: true,
+                        expands: true,
+                        scrollable: true,
+                        keyboardAppearance: Brightness.light,
+                        enableInteractiveSelection: true,
+                        // Enable retaining formatting when typing new text
+                        // This makes the toolbar buttons work for new text
+                        // Configure embedBuilders to handle images with fixed size
+                        embedBuilders: FlutterQuillEmbeds.editorBuilders(
+                          imageEmbedConfig: QuillEditorImageEmbedConfig(
+                            imageProviderBuilder: (context, imageSource) {
+                              if (imageSource.startsWith('http') && !imageSource.startsWith('blob:http')) {
+                                // Regular network image (not blob)
+                                return NetworkImage(imageSource);
+                              } else if (imageSource.startsWith('data:')) {
+                                // Data URL (for web)
+                                return MemoryImage(Uri.parse(imageSource).data!.contentAsBytes());
+                              } else if (imageSource.startsWith('blob:')) {
+                                // Blob URL (for web)
+                                print('Blob URL detected: $imageSource');
+                                try {
+                                  // Attempt to load the placeholder asset
+                                  return const AssetImage('assets/images/image_placeholder.png');
+                                } catch (e) {
+                                  print('Error loading placeholder image: $e');
+                                  // Fallback to a default color or another placeholder
+                                  return MemoryImage(Uint8List(0)); // Empty image
+                                }
+                              } else if (kIsWeb) {
+                                // For web, we can't use FileImage, so we'll use an asset image as a fallback
+                                print('Warning: Unsupported image source on web: $imageSource');
                                 return const AssetImage('assets/images/image_placeholder.png');
-                              } catch (e) {
-                                print('Error loading placeholder image: $e');
-                                // Fallback to a default color or another placeholder
-                                return MemoryImage(Uint8List(0)); // Empty image
+                              } else if (imageSource.startsWith('file:')) {
+                                // File URI (for mobile)
+                                return FileImage(File(imageSource.replaceFirst('file:', '')));
+                              } else {
+                                // Local file path (for mobile)
+                                return FileImage(File(imageSource));
                               }
-                            } else if (kIsWeb) {
-                              // For web, we can't use FileImage, so we'll use an asset image as a fallback
-                              print('Warning: Unsupported image source on web: $imageSource');
-                              return const AssetImage('assets/images/image_placeholder.png');
-                            } else if (imageSource.startsWith('file:')) {
-                              // File URI (for mobile)
-                              return FileImage(File(imageSource.replaceFirst('file:', '')));
-                            } else {
-                              // Local file path (for mobile)
-                              return FileImage(File(imageSource));
-                            }
-                          },
-                          // Callback when an image is removed
-                          onImageRemovedCallback: (imageSource) async {
-                            print('Image removed: $imageSource');
-                            return; // Return a completed Future<void>
-                          },
+                            },
+                            // Callback when an image is removed
+                            onImageRemovedCallback: (imageSource) async {
+                              print('Image removed: $imageSource');
+                              return; // Return a completed Future<void>
+                            },
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

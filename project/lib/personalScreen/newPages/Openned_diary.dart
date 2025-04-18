@@ -912,6 +912,17 @@ if (title.isEmpty || content.isEmpty) {
                   if (_showToolbar)
                     Container(
                       padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      decoration: const BoxDecoration(
+                        color: Colors.white, // White background for toolbar
+                        borderRadius: BorderRadius.all(Radius.circular(8.0)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 3.0,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
+                      ),
                       child: QuillSimpleToolbar(
                         controller: _quillController,
                         config: QuillSimpleToolbarConfig(
@@ -925,7 +936,7 @@ if (title.isEmpty || content.isEmpty) {
                           showStrikeThrough: true,
                           showInlineCode: true,
                           showColorButton: true,
-                          showBackgroundColorButton: true,
+                          showBackgroundColorButton: false, // Disabled background color in toolbar
                           showClearFormat: true,
                           showAlignmentButtons: true,
                           showHeaderStyle: true,
