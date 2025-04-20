@@ -4,6 +4,7 @@ import 'package:flutter_quill/flutter_quill.dart'; // Import FlutterQuillLocaliz
 import 'package:provider/provider.dart';
 import 'providers/pages_provider.dart';
 import 'app_router.dart';
+import 'personalScreen/bin.dart'; // Import BinProvider
 
 void main() async {
   // Ensure Flutter is initialized
@@ -16,6 +17,7 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => PagesProvider()),
+        ChangeNotifierProvider(create: (_) => BinProvider()),
       ],
       child: MyApp(initialRoute: initialRoute),
     ),

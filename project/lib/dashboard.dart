@@ -74,8 +74,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return dateB.compareTo(dateA);
       });
 
-      // Take only the 5 most recent entries
-      final recentEntries = entries.take(5).toList();
+      // Take the 7 most recent entries
+      final recentEntries = entries.take(7).toList();
 
       // Convert DiaryEntry objects to maps for easier use in the UI
       final recentDiaries = recentEntries.map((entry) => {
@@ -233,6 +233,32 @@ Future<void> _logout() async {
 
   // Redirect to login page
   _redirectToLogin();
+}
+
+// Helper method to clean title text that might be in JSON format
+String _cleanTitle(String title) {
+  try {
+    // Check if the title is in JSON format
+    if (title.startsWith('[') || title.startsWith('{')) {
+      final jsonData = json.decode(title);
+      if (jsonData is List && jsonData.isNotEmpty) {
+        // Extract text from Delta format if possible
+        String extractedTitle = '';
+        for (var op in jsonData) {
+          if (op is Map && op.containsKey('insert') && op['insert'] is String) {
+            extractedTitle += op['insert'];
+          }
+        }
+        return extractedTitle.isNotEmpty ? extractedTitle.trim() : 'Untitled';
+      } else {
+        return 'Untitled';
+      }
+    }
+    return title.trim();
+  } catch (e) {
+    print('Error cleaning title: $e');
+    return title.trim();
+  }
 }
 
 
@@ -417,7 +443,7 @@ Future<void> _logout() async {
                                               ),
                                               const SizedBox(height: 8),
                                               Text(
-                                                diary['title'] ?? DateFormat('MMM d').format(date),
+                                                diary['title'] != null ? _cleanTitle(diary['title'].toString()) : DateFormat('MMM d').format(date),
                                                 style: const TextStyle(fontSize: 14),
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,

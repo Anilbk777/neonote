@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' show min;
 import 'package:http/http.dart' as http;
 import 'package:project/services/local_storage.dart';
+import 'package:provider/provider.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -11,10 +12,13 @@ import 'package:project/widgets/custom_scaffold.dart';
 import 'package:project/services/diary_service.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutter_quill/flutter_quill.dart' hide Text;
+import 'package:video_player/video_player.dart';
+// Custom video embed removed
 import 'package:flutter_quill/src/common/structs/horizontal_spacing.dart';
 import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
+import 'package:project/personalScreen/bin.dart';
 
 class NewDiaryPage extends StatefulWidget {
   final Map<String, dynamic>? initialData;
@@ -519,6 +523,43 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
     }
   }
 
+  // Method to pick and embed a video
+  Future<void> _pickAndEmbedVideo() async {
+    try {
+      final XFile? pickedVideo = await _imagePicker.pickVideo(source: ImageSource.gallery);
+
+      if (pickedVideo == null) {
+        print('No video selected');
+        return;
+      }
+
+      String videoSource = pickedVideo.path;
+      print('Video source: $videoSource');
+
+      // Create a custom embed for the video
+      final index = _quillController.selection.baseOffset;
+      final length = _quillController.selection.extentOffset - index;
+
+      // Insert the video at the current cursor position using the standard video embed
+      _quillController.replaceText(
+        index,
+        length,
+        BlockEmbed.video(videoSource),
+        null, // TextSelection parameter should be null or a valid TextSelection object
+      );
+
+      // Show a success message
+      _scaffoldMessengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text('Video added successfully')),
+      );
+    } catch (e) {
+      print('Error picking video: $e');
+      _scaffoldMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text('Error adding video: $e')),
+      );
+    }
+  }
+
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -703,13 +744,34 @@ if (title.isEmpty || content.isEmpty) {
       final id = widget.initialData!['id'];
       print('Deleting diary entry with ID: $id');
 
+      // Create a DiaryEntry object from the initialData
+      final diary = DiaryEntry(
+        id: id,
+        title: _titleController.text.trim(),
+        content: jsonEncode(_quillController.document.toDelta().toJson()),
+        date: _selectedDate,
+        mood: widget.initialData!['mood'],
+        backgroundColor: _backgroundColor.value,
+        textColor: _textColor.value,
+        template: widget.initialData!['template'] ?? 'Default',
+        images: widget.initialData!['images'] != null ?
+          (widget.initialData!['images'] as List).map((img) =>
+            DiaryImage(id: img['id'], imageUrl: img['image'])).toList() : [],
+        createdAt: widget.initialData!['created_at'] != null ? DateTime.parse(widget.initialData!['created_at']) : null,
+        updatedAt: widget.initialData!['updated_at'] != null ? DateTime.parse(widget.initialData!['updated_at']) : null,
+      );
+
+      // Add the diary to the bin
+      Provider.of<BinProvider>(context, listen: false).addDeletedDiary(diary);
+
+      // Delete the diary from the backend
       await diaryService.deleteEntry(id);
       print('Diary entry deleted successfully');
 
       // Clear any existing snackbars before showing a new one
       _scaffoldMessengerKey.currentState?.hideCurrentSnackBar();
       _scaffoldMessengerKey.currentState?.showSnackBar(
-        const SnackBar(content: Text('Diary entry deleted successfully')),
+        const SnackBar(content: Text('Diary entry moved to bin')),
       );
 
       // Return to the previous screen with null to indicate deletion
@@ -996,46 +1058,58 @@ if (title.isEmpty || content.isEmpty) {
                               null,                           // decoration
                             ),
                           ),
-                          // Configure embedBuilders to handle images with fixed size
-                          embedBuilders: FlutterQuillEmbeds.editorBuilders(
-                            imageEmbedConfig: QuillEditorImageEmbedConfig(
-                              imageProviderBuilder: (context, imageSource) {
-                                if (imageSource.startsWith('http') && !imageSource.startsWith('blob:http')) {
-                                  // Regular network image (not blob)
-                                  return NetworkImage(imageSource);
-                                } else if (imageSource.startsWith('data:')) {
-                                  // Data URL (for web)
-                                  return MemoryImage(Uri.parse(imageSource).data!.contentAsBytes());
-                                } else if (imageSource.startsWith('blob:')) {
-                                  // Blob URL (for web)
-                                  print('Blob URL detected: $imageSource');
-                                  try {
-                                    // Attempt to load the placeholder asset
-                                    return const AssetImage('assets/images/image_placeholder.png');
-                                  } catch (e) {
-                                    print('Error loading placeholder image: $e');
-                                    // Fallback to a default color or another placeholder
-                                    return MemoryImage(Uint8List(0)); // Empty image
+                          // Configure embedBuilders to handle images and videos with fixed size
+                          embedBuilders: [
+                            ...FlutterQuillEmbeds.editorBuilders(
+                              imageEmbedConfig: QuillEditorImageEmbedConfig(
+                                imageProviderBuilder: (context, imageSource) {
+                                  if (imageSource.startsWith('http') && !imageSource.startsWith('blob:http')) {
+                                    // Regular network image (not blob)
+                                    return NetworkImage(imageSource);
+                                  } else if (imageSource.startsWith('data:')) {
+                                    // Data URL (for web)
+                                    return MemoryImage(Uri.parse(imageSource).data!.contentAsBytes());
+                                  } else if (imageSource.startsWith('blob:')) {
+                                    // Blob URL (for web)
+                                    print('Blob URL detected: $imageSource');
+                                    try {
+                                      // Attempt to load a placeholder
+                                      return NetworkImage('https://via.placeholder.com/300x200?text=Video');
+                                    } catch (e) {
+                                      print('Error loading placeholder image: $e');
+                                      // Fallback to a default color or another placeholder
+                                      return MemoryImage(Uint8List(0)); // Empty image
+                                    }
+                                  } else if (kIsWeb) {
+                                    // For web, we can't use FileImage, so we'll use a network placeholder
+                                    print('Warning: Unsupported image source on web: $imageSource');
+                                    return NetworkImage('https://via.placeholder.com/300x200?text=Image');
+                                  } else if (imageSource.startsWith('file:')) {
+                                    // File URI (for mobile)
+                                    return FileImage(File(imageSource.replaceFirst('file:', '')));
+                                  } else {
+                                    // Local file path (for mobile)
+                                    return FileImage(File(imageSource));
                                   }
-                                } else if (kIsWeb) {
-                                  // For web, we can't use FileImage, so we'll use an asset image as a fallback
-                                  print('Warning: Unsupported image source on web: $imageSource');
-                                  return const AssetImage('assets/images/image_placeholder.png');
-                                } else if (imageSource.startsWith('file:')) {
-                                  // File URI (for mobile)
-                                  return FileImage(File(imageSource.replaceFirst('file:', '')));
-                                } else {
-                                  // Local file path (for mobile)
-                                  return FileImage(File(imageSource));
-                                }
-                              },
-                              // Callback when an image is removed
-                              onImageRemovedCallback: (imageSource) async {
-                                print('Image removed: $imageSource');
-                                return; // Return a completed Future<void>
-                              },
+                                },
+                                // Callback when an image is removed
+                                onImageRemovedCallback: (imageSource) async {
+                                  print('Image removed: $imageSource');
+                                  return; // Return a completed Future<void>
+                                },
+                              ),
+                              videoEmbedConfig: QuillEditorVideoEmbedConfig(
+                                onVideoInit: (videoContainerKey) {
+                                  print('Video initialized with key: $videoContainerKey');
+                                },
+                                customVideoBuilder: (videoUrl, readOnly) {
+                                  print('Building custom video for URL: $videoUrl');
+                                  return null; // Return null to use default video builder
+                                },
+                              ),
                             ),
-                          ),
+                            // Custom video embed builder removed
+                          ],
                         ),
                       ),
                     ),
@@ -1080,6 +1154,8 @@ if (title.isEmpty || content.isEmpty) {
     },
     tooltip: _showToolbar ? 'Hide formatting' : 'Show formatting',
   ),
+
+  // Video button removed - using Flutter Quill toolbar for video embedding
 
   // Background Color button - direct access to background color picker
   IconButton(

@@ -516,10 +516,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:project/widgets/custom_scaffold.dart';
 import 'package:project/models/goals_model.dart';
 import 'package:project/services/goal_service.dart';
 import 'package:project/widgets/goal_cards.dart';
+import 'package:project/personalScreen/bin.dart';
 import 'goal_helpers.dart';
 
 class GoalPage extends StatefulWidget {

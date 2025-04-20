@@ -1,7 +1,9 @@
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:project/models/goals_model.dart';
 import 'package:project/services/goal_service.dart';
+import 'package:project/personalScreen/bin.dart';
 import 'package:intl/intl.dart';
 
 Future<void> addGoal(
@@ -108,10 +110,24 @@ Future<void> deleteGoal(
   // Begin deletion and update UI state accordingly
   setLoading(true);
   try {
-    await GoalService.deleteGoal(goals[index].id);
+    // Get the goal to be deleted
+    final goalToDelete = goals[index];
+
+    // Add the goal to the bin
+    Provider.of<BinProvider>(context, listen: false).addDeletedGoal(goalToDelete);
+
+    // Delete the goal from the backend
+    await GoalService.deleteGoal(goalToDelete.id);
+
+    // Update the UI
     setState(() {
       goals.removeAt(index);
     });
+
+    // Show a snackbar to inform the user
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Goal moved to bin')),
+    );
   } catch (e) {
     showErrorDialog(context, 'Failed to delete goal: $e');
   } finally {
@@ -224,7 +240,7 @@ Future<void> editGoal(
                 showErrorDialog(context, 'Title cannot be empty.');
                 return;
               }
-              
+
               if (newCompletionDate.isBefore(newStartDate)) {
                 showErrorDialog(
                     context, 'Completion date cannot be earlier than start date.');

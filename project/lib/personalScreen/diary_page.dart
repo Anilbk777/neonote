@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
+import 'package:provider/provider.dart';
 import 'package:project/widgets/custom_scaffold.dart';
 import 'package:project/personalScreen/newPages/Openned_diary.dart';
 import 'package:project/services/diary_service.dart';
+import 'package:project/personalScreen/bin.dart';
 
 class DiaryPage extends StatefulWidget {
   const DiaryPage({Key? key}) : super(key: key);
@@ -115,7 +117,10 @@ class _DiaryPageState extends State<DiaryPage> {
       final result = await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => const NewDiaryPage(), // No parameters for new diary
+          builder: (context) => ChangeNotifierProvider.value(
+            value: Provider.of<BinProvider>(context, listen: false),
+            child: const NewDiaryPage(), // No parameters for new diary
+          ),
         ),
       );
 
@@ -176,8 +181,11 @@ class _DiaryPageState extends State<DiaryPage> {
       final result = await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => NewDiaryPage(
-            initialData: serializedDiary, // Use initialData instead of diaryData
+          builder: (context) => ChangeNotifierProvider.value(
+            value: Provider.of<BinProvider>(context, listen: false),
+            child: NewDiaryPage(
+              initialData: serializedDiary, // Use initialData instead of diaryData
+            ),
           ),
         ),
       );
@@ -222,18 +230,69 @@ class _DiaryPageState extends State<DiaryPage> {
   Future<void> _deleteDiary(int index) async {
     try {
       final diaryService = DiaryService();
-      await diaryService.deleteEntry(diaries[index]['id']);
+      final diaryData = diaries[index];
+
+      // Create a DiaryEntry object from the diary data
+      final diary = DiaryEntry(
+        id: diaryData['id'],
+        title: diaryData['title'] ?? '',
+        content: diaryData['content'] ?? '',
+        date: DateTime.parse(diaryData['date']),
+        mood: diaryData['mood'],
+        backgroundColor: diaryData['background_color'] ?? 0xFFFFFFFF,
+        textColor: diaryData['text_color'] ?? 0xFF000000,
+        template: diaryData['template'] ?? 'Default',
+        images: diaryData['images'] != null ?
+          (diaryData['images'] as List).map((img) =>
+            DiaryImage(id: img['id'], imageUrl: img['image'])).toList() : [],
+        createdAt: diaryData['created_at'] != null ? DateTime.parse(diaryData['created_at']) : null,
+        updatedAt: diaryData['updated_at'] != null ? DateTime.parse(diaryData['updated_at']) : null,
+      );
+
+      // Add the diary to the bin
+      Provider.of<BinProvider>(context, listen: false).addDeletedDiary(diary);
+
+      // Delete the diary from the backend
+      await diaryService.deleteEntry(diaryData['id']);
+
       setState(() {
         diaries.removeAt(index);
       });
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Diary entry deleted')),
+        const SnackBar(content: Text('Diary entry moved to bin')),
       );
     } catch (e) {
       print('Error deleting diary: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Error deleting diary entry')),
       );
+    }
+  }
+
+  // Helper method to clean title text that might be in JSON format
+  String _cleanTitle(String title) {
+    try {
+      // Check if the title is in JSON format
+      if (title.startsWith('[') || title.startsWith('{')) {
+        final jsonData = json.decode(title);
+        if (jsonData is List && jsonData.isNotEmpty) {
+          // Extract text from Delta format if possible
+          String extractedTitle = '';
+          for (var op in jsonData) {
+            if (op is Map && op.containsKey('insert') && op['insert'] is String) {
+              extractedTitle += op['insert'];
+            }
+          }
+          return extractedTitle.isNotEmpty ? extractedTitle.trim() : 'Untitled';
+        } else {
+          return 'Untitled';
+        }
+      }
+      return title.trim();
+    } catch (e) {
+      print('Error cleaning title: $e');
+      return title.trim();
     }
   }
 
@@ -309,7 +368,7 @@ class _DiaryPageState extends State<DiaryPage> {
               ),
               const SizedBox(height: 4),
               Text(
-                diary['title'] ?? DateFormat('MMM d').format(date),
+                diary['title'] != null ? _cleanTitle(diary['title'].toString()) : DateFormat('MMM d').format(date),
                 style: const TextStyle(fontSize: 12),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -450,7 +509,7 @@ class _DiaryPageState extends State<DiaryPage> {
           title: Text(
             // Try different ways to access the title
             diary['title'] != null && diary['title'].toString().isNotEmpty
-                ? diary['title'].toString()
+                ? _cleanTitle(diary['title'].toString())
                 : (diary.containsKey('title')
                     ? 'Title is empty'
                     : 'No title key - ' + DateFormat('MMM d, yyyy').format(date)),
@@ -470,16 +529,44 @@ class _DiaryPageState extends State<DiaryPage> {
                   ],
                 ],
               ),
-              // Add content preview
+              // Add content preview with proper parsing of Delta JSON
               if (diary['content'] != null && diary['content'].toString().isNotEmpty)
-                Text(
-                  diary['content'].toString().length > 50
-                      ? diary['content'].toString().substring(0, 50) + '...'
-                      : diary['content'].toString(),
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                Builder(builder: (context) {
+                  String contentPreview = '';
+                  try {
+                    // Try to parse the content as Delta JSON
+                    final contentJson = json.decode(diary['content'].toString());
+
+                    // Extract plain text from Delta operations
+                    if (contentJson is List) {
+                      for (var op in contentJson) {
+                        if (op is Map && op.containsKey('insert')) {
+                          if (op['insert'] is String) {
+                            contentPreview += op['insert'];
+                          }
+                        }
+                      }
+                    }
+
+                    // If we couldn't extract text, use a placeholder
+                    if (contentPreview.isEmpty) {
+                      contentPreview = 'View diary entry...';
+                    }
+                  } catch (e) {
+                    // If parsing fails, use the first 50 chars of the raw content
+                    print('Error parsing diary content: $e');
+                    contentPreview = diary['content'].toString().length > 50
+                        ? diary['content'].toString().substring(0, 50) + '...'
+                        : diary['content'].toString();
+                  }
+
+                  return Text(
+                    contentPreview.length > 50 ? contentPreview.substring(0, 50) + '...' : contentPreview,
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  );
+                }),
             ],
           ),
           trailing: const Icon(Icons.chevron_right),

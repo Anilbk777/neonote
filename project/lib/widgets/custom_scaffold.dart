@@ -8,7 +8,7 @@ import 'package:project/models/page.dart'; // Ensure PageModel is imported
 import 'package:project/personalScreen/diary_page.dart';
 import 'package:project/dashboard.dart';
 import 'package:project/personalScreen/inbox.dart';
-import 'package:project/personalScreen/bin.dart';
+import 'package:project/personalScreen/bin.dart'; // Import for BinPage and BinProvider
 import 'package:project/personalScreen/calender.dart';
 import 'package:project/personalScreen/templates.dart';
 import 'package:project/personalScreen/goal.dart';
@@ -245,8 +245,16 @@ class _CustomScaffoldState extends State<CustomScaffold> {
           ),
           ElevatedButton(
   onPressed: () {
+    // Add the page to the bin
+    Provider.of<BinProvider>(context, listen: false).addDeletedPage(pageModel);
+
     // Delete the page from the provider
     Provider.of<PagesProvider>(context, listen: false).deletePage(pageModel.id);
+
+    // Show a snackbar to inform the user
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Page moved to bin')),
+    );
 
     // Close the current page (ContentPage)
     Navigator.of(dialogContext).pop(); // Close the dialog
