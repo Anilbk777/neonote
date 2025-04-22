@@ -14,6 +14,9 @@ import 'package:project/services/diary_service.dart';
 import 'package:project/personalScreen/newPages/Openned_diary.dart';
 import 'package:project/personalScreen/diary_page.dart';
 import 'package:intl/intl.dart';
+import 'package:project/services/calendar_service.dart';
+import 'package:calendar_view/calendar_view.dart';
+import 'package:project/app_router.dart';
 
 
 class DashboardScreen extends StatefulWidget {
@@ -32,6 +35,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<dynamic> _recentDiaries = [];
   bool _isLoadingDiaries = false;
 
+  // Calendar service and upcoming events
+  final CalendarService _calendarService = CalendarService();
+  List<CalendarEventData<Object?>> _upcomingEvents = [];
+  bool _isLoadingEvents = false;
+
   @override
   void initState() {
     super.initState();
@@ -39,7 +47,58 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _fetchUserData(); // Ensure it runs after the first frame is built
       _fetchRecentDiaries(); // Fetch recent diary entries
       _fetchUserPages(); // Fetch user's content pages
+      _fetchUpcomingEvents(); // Fetch upcoming calendar events
     });
+  }
+
+  // Fetch upcoming calendar events
+  Future<void> _fetchUpcomingEvents() async {
+    try {
+      print('Starting to fetch upcoming events');
+      setState(() {
+        _isLoadingEvents = true;
+      });
+
+      // Get upcoming events (limit to 5 dates, showing all events per date)
+      final events = await _calendarService.getUpcomingEvents(limit: 5);
+
+      print('Dashboard received ${events.length} upcoming events');
+      if (events.isNotEmpty) {
+        // Group events by date for logging
+        Map<String, List<CalendarEventData<Object?>>> eventsByDate = {};
+
+        for (var event in events) {
+          final dateKey = DateFormat('yyyy-MM-dd').format(event.date);
+          if (!eventsByDate.containsKey(dateKey)) {
+            eventsByDate[dateKey] = [];
+          }
+          eventsByDate[dateKey]!.add(event);
+          print('Event: ${event.title}, Date: ${DateFormat('yyyy-MM-dd').format(event.date)}, Start: ${event.startTime != null ? DateFormat('HH:mm').format(event.startTime!) : "All day"}');
+        }
+
+        // Log events by date
+        print('Events grouped by date:');
+        eventsByDate.forEach((date, dateEvents) {
+          print('Date: $date, Events: ${dateEvents.length}');
+          for (var event in dateEvents) {
+            print('  - ${event.title}');
+          }
+        });
+      } else {
+        print('No upcoming events received');
+      }
+
+      setState(() {
+        _upcomingEvents = events;
+        _isLoadingEvents = false;
+      });
+    } catch (e) {
+      print('Error fetching upcoming events: $e');
+      print('Stack trace: ${StackTrace.current}');
+      setState(() {
+        _isLoadingEvents = false;
+      });
+    }
   }
 
   // Fetch user's content pages
@@ -261,7 +320,154 @@ String _cleanTitle(String title) {
   }
 }
 
+// Build cards for upcoming events
+List<Widget> _buildUpcomingEventCards() {
+  print('Building upcoming event cards from ${_upcomingEvents.length} events');
 
+  if (_upcomingEvents.isEmpty) {
+    print('No events to display');
+    return [
+      const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Center(
+            child: Text(
+              'No upcoming events',
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+          ),
+        ),
+      )
+    ];
+  }
+
+  print('Building cards for ${_upcomingEvents.length} events');
+
+  // Group events by date
+  Map<String, List<CalendarEventData<Object?>>> eventsByDate = {};
+
+  for (var event in _upcomingEvents) {
+    // Format the date as a string key
+    final dateKey = DateFormat('yyyy-MM-dd').format(event.date);
+    print('Adding event "${event.title}" to date $dateKey');
+
+    // Add to the map
+    if (!eventsByDate.containsKey(dateKey)) {
+      eventsByDate[dateKey] = [];
+    }
+    eventsByDate[dateKey]!.add(event);
+  }
+
+  // Sort dates
+  final sortedDates = eventsByDate.keys.toList()..sort();
+  print('Sorted dates: $sortedDates');
+
+  // Build a card for each date
+  return sortedDates.map((dateKey) {
+    final events = eventsByDate[dateKey]!;
+    final date = DateTime.parse(dateKey);
+    final isToday = DateFormat('yyyy-MM-dd').format(DateTime.now()) == dateKey;
+
+    // Format the date header
+    final dateHeader = isToday
+        ? 'Today, ${DateFormat('MMMM d').format(date)}'
+        : '${DateFormat('EEEE, MMMM d').format(date)}';
+
+    // Sort events by start time
+    events.sort((a, b) =>
+        (a.startTime ?? a.date).compareTo(b.startTime ?? b.date));
+
+    // Build the event items
+    final eventItems = <Widget>[];
+
+    for (var i = 0; i < events.length; i++) {
+      final event = events[i];
+      final startTime = event.startTime != null
+          ? DateFormat('h:mm a').format(event.startTime!)
+          : 'All day';
+
+      // Add the event text
+      eventItems.add(
+        Text(
+          '$startTime, ${event.title}',
+          style: const TextStyle(fontSize: 14),
+        )
+      );
+
+      // Add spacing between items (except after the last item)
+      if (i < events.length - 1) {
+        eventItems.add(const SizedBox(height: 4));
+      }
+    }
+
+    // Return a card with the date and events
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: () {
+          // Navigate to the calendar page
+          Navigator.pushNamed(context, AppRouter.calendarRoute);
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Leading icon
+              Padding(
+                padding: const EdgeInsets.only(top: 2, right: 16),
+                child: Icon(
+                  Icons.calendar_today,
+                  color: const Color(0xFF255DE1),
+                  size: 24,
+                ),
+              ),
+              // Content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Date header
+                    Text(
+                      dateHeader,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    // Event items - make it scrollable if there are many events
+                    eventItems.length <= 4
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: eventItems,
+                        )
+                      : Container(
+                          constraints: const BoxConstraints(maxHeight: 120),
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: eventItems,
+                            ),
+                          ),
+                        ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }).toList();
+}
+
+
+
+  // Refresh all dashboard data
+  Future<void> _refreshDashboard() async {
+    await Future.wait([
+      _fetchRecentDiaries(),
+      _fetchUpcomingEvents(),
+    ]);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -301,9 +507,13 @@ String _cleanTitle(String title) {
           ),
           // Dashboard Content
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
+            child: RefreshIndicator(
+              onRefresh: _refreshDashboard,
+              color: const Color(0xFF255DE1),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Recents Section
@@ -467,43 +677,48 @@ String _cleanTitle(String title) {
                         ),
                   const SizedBox(height: 20),
                   // Upcoming Events Section
-                  const Text(
-                    'Upcoming Events',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(
+                            Icons.event,
+                            size: 24,
+                            color: Color(0xFF255DE1),
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Upcoming Events',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.pushNamed(context, AppRouter.calendarRoute);
+                        },
+                        icon: const Icon(Icons.arrow_forward),
+                        label: const Text("View All"),
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF255DE1),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 10),
-                  const Card(
-                    child: ListTile(
-                      leading: Icon(Icons.calendar_today,
-                          color: Color.fromARGB(255, 37, 93, 225)),
-                      title: Text('Today, December 22'),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('9 AM, My meeting in Zoom'),
-                          Text('11 AM, Lunch Time'),
-                        ],
+                  _isLoadingEvents
+                    ? const Center(
+                        child: CircularProgressIndicator(),
+                      )
+                    : Column(
+                        children: _buildUpcomingEventCards(),
                       ),
-                    ),
-                  ),
-                  const Card(
-                    child: ListTile(
-                      leading: Icon(Icons.calendar_today,
-                          color: Color.fromARGB(255, 37, 93, 225)),
-                      title: Text('Saturday, December 25'),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('10 AM, Grocery Store'),
-                          Text('12 AM, Lamachaur'),
-                        ],
-                      ),
-                    ),
-                  ),
                 ],
+              ),
               ),
             ),
           ),

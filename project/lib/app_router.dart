@@ -5,6 +5,7 @@ import 'package:project/register_page.dart';
 import 'package:project/personalScreen/diary_page.dart';
 import 'package:project/services/local_storage.dart';
 import 'package:project/home_page.dart';
+import 'package:project/personalScreen/calender.dart';
 
 class AppRouter {
   static const String homeRoute = '/';
@@ -12,6 +13,7 @@ class AppRouter {
   static const String registerRoute = '/register';
   static const String dashboardRoute = '/dashboard';
   static const String diaryRoute = '/diary';
+  static const String calendarRoute = '/calendar';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -25,6 +27,8 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => DashboardScreen());
       case diaryRoute:
         return MaterialPageRoute(builder: (_) => DiaryPage());
+      case calendarRoute:
+        return MaterialPageRoute(builder: (_) => const Calenderpage());
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(
