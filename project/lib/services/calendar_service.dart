@@ -89,68 +89,99 @@ class CalendarService {
   // Convert Django event to CalendarEventData
   CalendarEventData<Object?> _convertToCalendarEventData(Map<String, dynamic> event) {
     print('Converting event data: $event');
-    final date = DateTime.parse(event['date']);
 
-    // Parse start and end times
-    final startTimeParts = event['start_time'].split(':');
-    final endTimeParts = event['end_time'].split(':');
+    try {
+      // Parse the date string from the API
+      final dateStr = event['date'];
+      print('Raw date string from API: $dateStr');
 
-    final startTime = DateTime(
-      date.year,
-      date.month,
-      date.day,
-      int.parse(startTimeParts[0]),
-      int.parse(startTimeParts[1]),
-    );
+      final date = DateTime.parse(dateStr);
+      print('Parsed date: ${date.year}-${date.month}-${date.day}');
 
-    final endTime = DateTime(
-      date.year,
-      date.month,
-      date.day,
-      int.parse(endTimeParts[0]),
-      int.parse(endTimeParts[1]),
-    );
+      // Parse start and end times
+      final startTimeParts = event['start_time'].split(':');
+      final endTimeParts = event['end_time'].split(':');
 
-    // Store the event ID in the event object for reference
-    final eventData = {
-      ...event,
-      'eventId': event['id'].toString(),
-    };
+      final startTime = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        int.parse(startTimeParts[0]),
+        int.parse(startTimeParts[1]),
+      );
 
-    // Determine the color to use
-    Color eventColor;
-    if (event['color'] != null) {
-      print('Using hex color from event: ${event['color']}');
-      eventColor = _hexToColor(event['color']);
-    } else if (event['color_name'] != null) {
-      print('Using color name from event: ${event['color_name']}');
-      eventColor = _getColorFromName(event['color_name']);
-    } else {
-      print('No color info found, using default blue');
-      eventColor = Colors.blue;
+      final endTime = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        int.parse(endTimeParts[0]),
+        int.parse(endTimeParts[1]),
+      );
+
+      print('Event time range: ${DateFormat('yyyy-MM-dd HH:mm').format(startTime)} to ${DateFormat('yyyy-MM-dd HH:mm').format(endTime)}');
+
+      // Store the event ID in the event object for reference
+      final eventData = {
+        ...event,
+        'eventId': event['id'].toString(),
+      };
+
+      // Determine the color to use
+      Color eventColor;
+      if (event['color'] != null) {
+        print('Using hex color from event: ${event['color']}');
+        eventColor = _hexToColor(event['color']);
+      } else if (event['color_name'] != null) {
+        print('Using color name from event: ${event['color_name']}');
+        eventColor = _getColorFromName(event['color_name']);
+      } else {
+        print('No color info found, using default blue');
+        eventColor = Colors.blue;
+      }
+      print('Final color for event: $eventColor');
+
+      // Create the CalendarEventData with the correct date
+      final calendarEvent = CalendarEventData(
+        title: event['title'],
+        description: event['description'] ?? '',
+        date: date,  // Use the parsed date from the API
+        startTime: startTime,
+        endTime: endTime,
+        color: eventColor,
+        event: eventData, // Store the original event data with ID
+      );
+
+      print('Created CalendarEventData for ${event['title']} on ${DateFormat('yyyy-MM-dd').format(date)}');
+      return calendarEvent;
+    } catch (e) {
+      print('ERROR parsing event data: $e');
+      print('Stack trace: ${StackTrace.current}');
+
+      // Create a fallback event with current date if parsing fails
+      final now = DateTime.now();
+      print('Using fallback date: ${now.year}-${now.month}-${now.day}');
+
+      return CalendarEventData(
+        title: event['title'] ?? 'Unknown Event',
+        description: event['description'] ?? '',
+        date: now,
+        startTime: now,
+        endTime: now.add(const Duration(hours: 1)),
+        color: Colors.red, // Use red to indicate an error
+        event: {'id': event['id'], 'eventId': event['id'].toString(), 'error': 'Failed to parse date'},
+      );
     }
-    print('Final color for event: $eventColor');
-
-    return CalendarEventData(
-      title: event['title'],
-      description: event['description'] ?? '',
-      date: date,
-      startTime: startTime,
-      endTime: endTime,
-      color: eventColor,
-      event: eventData, // Store the original event data with ID
-    );
   }
 
-  // Get events for a specific month
+  // FINAL SOLUTION: Get events for a specific month
   Future<List<CalendarEventData<Object?>>> getEventsForMonth(int year, int month) async {
     try {
       final headers = await _getHeaders();
 
       // Add a timeout to the request
       final url = '${baseUrl}month/?year=$year&month=$month';
-      print('Fetching events from: $url');
-      print('Using headers: $headers');
+      print('FINAL SOLUTION: Fetching events from: $url');
+      print('FINAL SOLUTION: Using headers: $headers');
 
       final response = await http.get(
         Uri.parse(url),
@@ -162,29 +193,50 @@ class CalendarService {
         },
       );
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      print('FINAL SOLUTION: Response status: ${response.statusCode}');
+      print('FINAL SOLUTION: Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        print('Successfully loaded ${data.length} events');
-        return data.map((event) => _convertToCalendarEventData(event)).toList();
+        print('FINAL SOLUTION: Successfully loaded ${data.length} events from API for $year-$month');
+
+        // Convert API data to CalendarEventData objects
+        final events = data.map((event) => _convertToCalendarEventData(event)).toList();
+
+        // IMPORTANT: Strictly verify that events are for the correct month
+        print('FINAL SOLUTION: Strictly verifying events are for month $year-$month');
+        final filteredEvents = events.where((event) {
+          final isCorrectMonth = event.date.year == year && event.date.month == month;
+          if (!isCorrectMonth) {
+            print('FINAL SOLUTION: WARNING: Event ${event.title} has date ${event.date.year}-${event.date.month}-${event.date.day} but was returned for month $year-$month');
+          } else {
+            print('FINAL SOLUTION: VALID: Event ${event.title} has correct date ${event.date.year}-${event.date.month}-${event.date.day} for month $year-$month');
+          }
+          return isCorrectMonth;
+        }).toList();
+
+        print('FINAL SOLUTION: After strict filtering: ${filteredEvents.length} events for month $year-$month');
+
+        // Print all filtered events for debugging
+        for (var event in filteredEvents) {
+          print('FINAL SOLUTION: Filtered event: ${event.title} on ${DateFormat('yyyy-MM-dd').format(event.date)}');
+        }
+
+        return filteredEvents;
       } else {
-        print('Failed to load events: ${response.statusCode}');
-        // Return empty list for any error
+        print('FINAL SOLUTION: Failed to load events: ${response.statusCode}');
         return [];
       }
     } catch (e) {
-      print('Error fetching events: $e');
-      print('Error type: ${e.runtimeType}');
-      print('Stack trace: ${StackTrace.current}');
+      print('FINAL SOLUTION: Error fetching events: $e');
+      print('FINAL SOLUTION: Error type: ${e.runtimeType}');
+      print('FINAL SOLUTION: Stack trace: ${StackTrace.current}');
 
       // Check if it's a connection error
       if (e.toString().contains('SocketException') || e.toString().contains('Connection refused')) {
-        print('Connection error: The Django server is not running. Please start the server.');
+        print('FINAL SOLUTION: Connection error: The Django server is not running. Please start the server.');
       }
 
-      // Return empty list for any error
       return [];
     }
   }
@@ -337,6 +389,7 @@ class CalendarService {
       final startFormatted = DateFormat('yyyy-MM-dd').format(start);
       final endFormatted = DateFormat('yyyy-MM-dd').format(end);
 
+      print('Fetching events for range: $startFormatted to $endFormatted');
       final response = await http.get(
         Uri.parse('${baseUrl}range/?start_date=$startFormatted&end_date=$endFormatted'),
         headers: headers,
@@ -347,17 +400,55 @@ class CalendarService {
         },
       );
 
+      print('Range API response status: ${response.statusCode}');
+      print('Range API response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        return data.map((event) => _convertToCalendarEventData(event)).toList();
+        print('Successfully loaded ${data.length} events for range from API');
+
+        // Convert API data to CalendarEventData objects
+        final events = data.map((event) => _convertToCalendarEventData(event)).toList();
+
+        // Verify that events are within the date range
+        print('Verifying events are within range $startFormatted to $endFormatted');
+        final filteredEvents = events.where((event) {
+          // Use inclusive comparison for start and end dates
+          final eventDate = DateTime(event.date.year, event.date.month, event.date.day);
+          final startDate = DateTime(start.year, start.month, start.day);
+          final endDate = DateTime(end.year, end.month, end.day);
+
+          final isInRange = (eventDate.isAtSameMomentAs(startDate) || eventDate.isAfter(startDate)) &&
+                           (eventDate.isAtSameMomentAs(endDate) || eventDate.isBefore(endDate));
+
+          if (!isInRange) {
+            print('WARNING: Event ${event.title} has date ${DateFormat('yyyy-MM-dd').format(event.date)} but was returned for range $startFormatted to $endFormatted');
+          } else {
+            print('VALID RANGE: Event ${event.title} has date ${DateFormat('yyyy-MM-dd').format(event.date)} within range $startFormatted to $endFormatted');
+          }
+          return isInRange;
+        }).toList();
+
+        print('After filtering: ${filteredEvents.length} events for range');
+
+        // Print all filtered events for debugging
+        for (var event in filteredEvents) {
+          print('Range filtered event: ${event.title} on ${DateFormat('yyyy-MM-dd').format(event.date)}');
+        }
+
+        return filteredEvents;
       } else {
         print('Failed to load events: ${response.statusCode}');
         // For testing purposes, return sample events when the server is not available
         if (response.statusCode == 404 || response.statusCode >= 500) {
-          return _getSampleEvents().where((event) =>
-            event.date.isAfter(start.subtract(const Duration(days: 1))) &&
-            event.date.isBefore(end.add(const Duration(days: 1)))
-          ).toList();
+          return _getSampleEvents().where((event) {
+            final eventDate = DateTime(event.date.year, event.date.month, event.date.day);
+            final startDate = DateTime(start.year, start.month, start.day);
+            final endDate = DateTime(end.year, end.month, end.day);
+
+            return (eventDate.isAtSameMomentAs(startDate) || eventDate.isAfter(startDate)) &&
+                   (eventDate.isAtSameMomentAs(endDate) || eventDate.isBefore(endDate));
+          }).toList();
         }
         return [];
       }
@@ -368,10 +459,14 @@ class CalendarService {
       // For testing purposes, return sample events when there's a connection error
       print('Returning sample events due to API error in getEventsForRange');
       final sampleEvents = _getSampleEvents();
-      return sampleEvents.where((event) =>
-        event.date.isAfter(start.subtract(const Duration(days: 1))) &&
-        event.date.isBefore(end.add(const Duration(days: 1)))
-      ).toList();
+      return sampleEvents.where((event) {
+        final eventDate = DateTime(event.date.year, event.date.month, event.date.day);
+        final startDate = DateTime(start.year, start.month, start.day);
+        final endDate = DateTime(end.year, end.month, end.day);
+
+        return (eventDate.isAtSameMomentAs(startDate) || eventDate.isAfter(startDate)) &&
+               (eventDate.isAtSameMomentAs(endDate) || eventDate.isBefore(endDate));
+      }).toList();
     }
   }
 
@@ -381,6 +476,7 @@ class CalendarService {
       final headers = await _getHeaders();
       final dateFormatted = DateFormat('yyyy-MM-dd').format(date);
 
+      print('Fetching events for day: $dateFormatted');
       final response = await http.get(
         Uri.parse('${baseUrl}day/?date=$dateFormatted'),
         headers: headers,
@@ -393,7 +489,25 @@ class CalendarService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        return data.map((event) => _convertToCalendarEventData(event)).toList();
+        print('Successfully loaded ${data.length} events for day $dateFormatted');
+
+        // Convert API data to CalendarEventData objects
+        final events = data.map((event) => _convertToCalendarEventData(event)).toList();
+
+        // Verify that events are for the correct day
+        print('Verifying events are for day $dateFormatted');
+        final filteredEvents = events.where((event) {
+          final isCorrectDay = event.date.year == date.year &&
+                              event.date.month == date.month &&
+                              event.date.day == date.day;
+          if (!isCorrectDay) {
+            print('WARNING: Event ${event.title} has date ${DateFormat('yyyy-MM-dd').format(event.date)} but was returned for day $dateFormatted');
+          }
+          return isCorrectDay;
+        }).toList();
+
+        print('After filtering: ${filteredEvents.length} events for day $dateFormatted');
+        return filteredEvents;
       } else {
         print('Failed to load events: ${response.statusCode}');
         // For testing purposes, return sample events when the server is not available

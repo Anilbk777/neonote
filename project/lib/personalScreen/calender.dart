@@ -25,6 +25,9 @@ class _CalenderpageState extends State<Calenderpage> {
   final GlobalKey<WeekViewState> _weekViewKey = GlobalKey<WeekViewState>();
   final GlobalKey<DayViewState> _dayViewKey = GlobalKey<DayViewState>();
 
+  // Add a ScrollController for the scrollable month list
+  final ScrollController _scrollController = ScrollController();
+
   EventController eventController = EventController();
   CalendarViewType _calendarView = CalendarViewType.month;
   DateTime _focusedDate = DateTime.now();
@@ -36,6 +39,13 @@ class _CalenderpageState extends State<Calenderpage> {
   void initState() {
     super.initState();
     _loginAndLoadEvents();
+  }
+
+  @override
+  void dispose() {
+    // Dispose of the ScrollController when the widget is disposed
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loginAndLoadEvents() async {
@@ -114,16 +124,33 @@ class _CalenderpageState extends State<Calenderpage> {
     });
 
     try {
-      // Load events for the current month and the next month for better UX
+      // SCROLLABLE CALENDAR: Load events for multiple months
       final now = DateTime.now();
-      final nextMonth = DateTime(now.year, now.month + 1, 1);
 
-      final currentMonthEvents = await _calendarService.getEventsForMonth(now.year, now.month);
-      final nextMonthEvents = await _calendarService.getEventsForMonth(nextMonth.year, nextMonth.month);
+      print('SCROLLABLE CALENDAR: Initial load - fetching events for multiple months');
+      // Create a new EventController
+      eventController = EventController();
 
-      // Clear existing events and add the new ones
-      eventController.removeWhere((_) => true); // Remove all events
-      eventController.addAll([...currentMonthEvents, ...nextMonthEvents]);
+      // Load events for 12 months
+      List<CalendarEventData<Object?>> allEvents = [];
+
+      for (int i = 0; i < 12; i++) {
+        final monthToLoad = DateTime(now.year, now.month + i, 1);
+        print('SCROLLABLE CALENDAR: Loading events for month ${monthToLoad.year}-${monthToLoad.month}');
+
+        final monthEvents = await _calendarService.getEventsForMonth(monthToLoad.year, monthToLoad.month);
+        allEvents.addAll(monthEvents);
+      }
+
+      print('SCROLLABLE CALENDAR: Loaded ${allEvents.length} events for all months');
+
+      // Add events to the controller
+      eventController.addAll(allEvents);
+
+      // Log all events for debugging
+      for (var event in allEvents) {
+        print('WINDOWS STYLE: Initial load event: ${event.title} on ${DateFormat('yyyy-MM-dd').format(event.date)}');
+      }
     } catch (e) {
       _handleError(e, 'load events');
     } finally {
@@ -135,53 +162,73 @@ class _CalenderpageState extends State<Calenderpage> {
     }
   }
 
-  // Load events when changing month, week, or day
+  // WINDOWS STYLE: Direct API call with forced refresh
   Future<void> _loadEventsForFocusedDate() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      List<CalendarEventData<Object?>> events = [];
+      // Create a new EventController instead of clearing the existing one
+      eventController = EventController();
+      print('WINDOWS STYLE: Created new EventController');
 
       switch (_calendarView) {
         case CalendarViewType.month:
-          // For month view, load only the current month
-          final currentMonth = DateTime(_focusedDate.year, _focusedDate.month, 1);
+          // Get the first day of the focused month
+          final focusedMonth = DateTime(_focusedDate.year, _focusedDate.month, 1);
+          print('WINDOWS STYLE: Loading events for month: ${focusedMonth.year}-${focusedMonth.month}');
 
-          print('Loading events for month: ${currentMonth.year}-${currentMonth.month}');
+          // Calculate previous and next month
+          final prevMonth = DateTime(focusedMonth.year, focusedMonth.month - 1, 1);
+          final nextMonth = DateTime(focusedMonth.year, focusedMonth.month + 1, 1);
 
-          final currentEvents = await _calendarService.getEventsForMonth(currentMonth.year, currentMonth.month);
+          // Load events for previous, current, and next month
+          print('WINDOWS STYLE: Loading events for previous month ${prevMonth.year}-${prevMonth.month}');
+          final prevMonthEvents = await _calendarService.getEventsForMonth(prevMonth.year, prevMonth.month);
 
-          print('Current month events: ${currentEvents.length}');
+          print('WINDOWS STYLE: Loading events for focused month ${focusedMonth.year}-${focusedMonth.month}');
+          final currentMonthEvents = await _calendarService.getEventsForMonth(focusedMonth.year, focusedMonth.month);
 
-          events = currentEvents;
+          print('WINDOWS STYLE: Loading events for next month ${nextMonth.year}-${nextMonth.month}');
+          final nextMonthEvents = await _calendarService.getEventsForMonth(nextMonth.year, nextMonth.month);
+
+          // Combine all events
+          final allEvents = [...prevMonthEvents, ...currentMonthEvents, ...nextMonthEvents];
+          print('WINDOWS STYLE: Loaded ${allEvents.length} events for all months');
+
+          // Log all events for debugging
+          for (var event in allEvents) {
+            print('WINDOWS STYLE: Event: ${event.title} on ${DateFormat('yyyy-MM-dd').format(event.date)}');
+          }
+
+          // Add events to the new controller
+          print('WINDOWS STYLE: Adding ${allEvents.length} events to controller');
+          eventController.addAll(allEvents);
           break;
 
         case CalendarViewType.week:
           // For week view, get the start and end of the week
           final weekStart = _focusedDate.subtract(Duration(days: _focusedDate.weekday - 1));
           final weekEnd = weekStart.add(const Duration(days: 6));
-          print('Loading events for week: ${weekStart.toString()} to ${weekEnd.toString()}');
-          events = await _calendarService.getEventsForRange(weekStart, weekEnd);
+          print('WINDOWS STYLE: Loading events for week: ${weekStart.toString()} to ${weekEnd.toString()}');
+          final events = await _calendarService.getEventsForRange(weekStart, weekEnd);
+          eventController.addAll(events);
           break;
 
         case CalendarViewType.day:
           // For day view, just get the events for that day
-          print('Loading events for day: ${_focusedDate.toString()}');
-          events = await _calendarService.getEventsForDay(_focusedDate);
+          print('WINDOWS STYLE: Loading events for day: ${_focusedDate.toString()}');
+          final events = await _calendarService.getEventsForDay(_focusedDate);
+          eventController.addAll(events);
           break;
       }
 
-      // Update the event controller
-      eventController.removeWhere((_) => true); // Remove all events
-      eventController.addAll(events);
-      print('Total events loaded: ${events.length}');
+      // Force a complete rebuild of the calendar view
+      setState(() {
+        print('WINDOWS STYLE: Forcing complete rebuild');
+      });
 
-      // Debug: Print all events to verify correct filtering
-      for (var event in events) {
-        print('Event: ${event.title}, Date: ${event.date.toString()}');
-      }
     } catch (e) {
       _handleError(e, 'load events');
     } finally {
@@ -248,17 +295,12 @@ class _CalenderpageState extends State<Calenderpage> {
                           onPressed: () => _loadEventsForFocusedDate(),
                           tooltip: 'Refresh',
                         ),
+                        // Month/Year selector button instead of prev/next buttons
                         IconButton(
-                          icon: const Icon(Icons.chevron_left),
-                          onPressed: () => _previousPage(),
-                          tooltip: 'Previous',
+                          icon: const Icon(Icons.calendar_month),
+                          onPressed: () => _showMonthYearPicker(context),
+                          tooltip: 'Select Month/Year',
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.chevron_right),
-                          onPressed: () => _nextPage(),
-                          tooltip: 'Next',
-                        ),
-
                       ],
                     ),
                   ],
@@ -275,7 +317,10 @@ class _CalenderpageState extends State<Calenderpage> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                _buildDateHeader(),
+                GestureDetector(
+                  onTap: () => _showMonthYearPicker(context),
+                  child: _buildDateHeader(),
+                ),
               ],
             ),
           ),
@@ -373,6 +418,7 @@ class _CalenderpageState extends State<Calenderpage> {
                       DropdownButton<int>(
                         value: selectedYear,
                         items: List.generate(11, (index) {
+                          // Show 5 years in the past and 5 years in the future
                           return DropdownMenuItem<int>(
                             value: DateTime.now().year - 5 + index,
                             child: Text('${DateTime.now().year - 5 + index}'),
@@ -403,20 +449,26 @@ class _CalenderpageState extends State<Calenderpage> {
                     Navigator.of(context).pop();
                     // Jump to the selected month and year
                     final newDate = DateTime(selectedYear, selectedMonth, 1);
+                    print('WINDOWS STYLE: Month/Year picker selected date: ${newDate.year}-${newDate.month}');
+
                     // Use the outer setState to update the widget state
                     this.setState(() {
                       _focusedDate = newDate;
                       _isLoading = true; // Show loading indicator
                     });
 
-                    // Jump to the new month
-                    _monthViewKey.currentState?.jumpToMonth(newDate);
-
-                    // Load events for the new month
+                    // First load events for the new month and adjacent months
+                    print('WINDOWS STYLE: Loading events for month: ${newDate.year}-${newDate.month}');
                     await _loadEventsForFocusedDate();
 
+                    // Then jump to the new month
+                    print('WINDOWS STYLE: Jumping to month: ${newDate.year}-${newDate.month}');
+                    _monthViewKey.currentState?.jumpToMonth(newDate);
+
                     // Force a rebuild to ensure the calendar shows the correct events
-                    this.setState(() {});
+                    this.setState(() {
+                      print('WINDOWS STYLE: Rebuild complete for: ${newDate.year}-${newDate.month}');
+                    });
                   },
                   child: const Text('Go'),
                 ),
@@ -594,115 +646,164 @@ class _CalenderpageState extends State<Calenderpage> {
   Widget _buildCalendarView() {
     switch (_calendarView) {
       case CalendarViewType.month:
-        return MonthView(
-          key: _monthViewKey,
-          controller: eventController,
-          onEventTap: (events, date) {
-            // Handle the event tap
-            _showEventDetailsDialog(context, events, date);
-          },
-          onCellTap: (events, date) {
-            if (events is List<CalendarEventData<Object?>>) {
-              // Filter events to only show events for this specific date
-              final filteredEvents = events.where((event) {
-                return event.date.year == date.year &&
-                       event.date.month == date.month &&
-                       event.date.day == date.day;
-              }).toList();
+        // MULTI-MONTH VIEW: Show months in a scrollable vertical list
+        return Column(
+          children: [
+            Expanded(
+              child: Scrollbar(
+                thumbVisibility: true,
+                thickness: 8,
+                radius: const Radius.circular(4),
+                controller: _scrollController, // Add the ScrollController to the Scrollbar
+                child: ListView.builder(
+                  controller: _scrollController, // Add the same ScrollController to the ListView
+                  itemCount: 12, // Show 12 months
+                  itemBuilder: (context, index) {
+                    // Calculate the month to display
+                    final monthToShow = DateTime(
+                      _focusedDate.year,
+                      _focusedDate.month + index,
+                      1,
+                    );
 
-              if (filteredEvents.isNotEmpty) {
-                _showEventDetailsDialog(context, filteredEvents, date);
-              } else {
-                // Create event on empty cell tap
-                _showAddEventDialog(context, initialDate: date);
-              }
-            } else {
-              // Create event on empty cell tap
-              _showAddEventDialog(context, initialDate: date);
-            }
-          },
-          onPageChange: (date, page) {
-            setState(() {
-              _focusedDate = date;
-            });
-            _loadEventsForFocusedDate();
-          },
-          // Hide the header as we're using our custom header
-          headerBuilder: (date) => const SizedBox.shrink(),
-          cellBuilder: (date, events, isToday, isInMonth, hideDaysNotInMonth) {
-            // Filter events to only show events for this specific date AND only for the current month
-            List<CalendarEventData<Object?>> filteredEvents = [];
-            if (events is List<CalendarEventData<Object?>>) {
-              filteredEvents = events.where((event) {
-                // Make sure the event date matches this cell's date exactly
-                // AND only show events for the current month (isInMonth check)
-                return event.date.year == date.year &&
-                       event.date.month == date.month &&
-                       event.date.day == date.day &&
-                       isInMonth; // Only show events for the current month
-              }).toList();
-            }
+                    return Container(
+                      height: 500, // Significantly increased height to ensure all dates are fully visible without scrolling
+                      margin: const EdgeInsets.only(bottom: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Month header
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Text(
+                              DateFormat('MMMM yyyy').format(monthToShow),
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          // Month view
+                          Expanded(
+                            child: Theme(
+                              // Disable scrollbars within each month
+                              data: Theme.of(context).copyWith(
+                                scrollbarTheme: ScrollbarThemeData(
+                                  thumbVisibility: MaterialStateProperty.all(false),
+                                  trackVisibility: MaterialStateProperty.all(false),
+                                ),
+                              ),
+                              child: MonthView(
+                                key: index == 0 ? _monthViewKey : null, // Only set key for the first month
+                                controller: eventController,
+                                // Windows-style calendar configuration
+                                showBorder: true,
+                                cellAspectRatio: 0.8, // Taller cells to ensure all dates are fully visible without scrolling
+                                initialMonth: monthToShow, // Use the calculated month
+                                // Disable scrolling within each month
+                                pageViewPhysics: const NeverScrollableScrollPhysics(),
+                                // Make sure all dates are shown
+                                minMonth: DateTime(1900, 1, 1),
+                                maxMonth: DateTime(2100, 12, 31),
+                                // Show dates from adjacent months
+                                onEventTap: (events, date) {
+                                  // Handle the event tap
+                                  _showEventDetailsDialog(context, events, date);
+                                },
+                                onCellTap: (events, date) {
+                                  // Allow adding events to any date, including those from adjacent months
+                                  _showAddEventDialog(context, initialDate: date); // Pass the tapped date
+                                },
+                                // We don't need onPageChange for individual months in the list
+                                // Hide the header as we're using our custom header
+                                headerBuilder: (date) => const SizedBox.shrink(),
+                                cellBuilder: (date, events, isToday, isInMonth, hideDaysNotInMonth) {
+                                  // Filter events to only show events for this specific date
+                                  List<CalendarEventData<Object?>> filteredEvents = [];
+                                  if (events is List<CalendarEventData<Object?>>) {
+                                    filteredEvents = events.where((event) {
+                                      // Make sure the event date matches this cell's date exactly
+                                      final matches = event.date.year == date.year &&
+                                            event.date.month == date.month &&
+                                            event.date.day == date.day;
+                                      return matches;
+                                    }).toList();
+                                  }
 
-            // Custom cell builder for better styling
-            return Container(
-              margin: const EdgeInsets.all(1),
-              padding: const EdgeInsets.only(top: 4),
-              decoration: BoxDecoration(
-                color: isToday ? Colors.blue.withOpacity(0.1) : null,
-                border: Border.all(color: isToday ? Colors.blue : Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Column(
-                children: [
-                  // Date number
-                  Text(
-                    '${date.day}',
-                    style: TextStyle(
-                      fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                      color: isInMonth ? Colors.black : Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  // Event indicators
-                  Expanded(
-                    child: filteredEvents.isNotEmpty
-                        ? ListView.builder(
-                            physics: const NeverScrollableScrollPhysics(),
-                            padding: const EdgeInsets.symmetric(horizontal: 2),
-                            itemCount: filteredEvents.length > 3 ? 3 : filteredEvents.length,
-                            itemBuilder: (context, index) {
-                              final event = filteredEvents[index];
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 2),
-                                padding: const EdgeInsets.symmetric(horizontal: 4),
-                                decoration: BoxDecoration(
-                                  color: event.color.withOpacity(0.8),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  event.title ?? '',
-                                  style: const TextStyle(fontSize: 10, color: Colors.white),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                ),
-                              );
-                            },
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-                  // More events indicator
-                  if (filteredEvents.length > 3)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 2),
-                      child: Text(
-                        '+${filteredEvents.length - 3} more',
-                        style: TextStyle(fontSize: 9, color: Colors.grey.shade600),
+                                  // Show all cells with different styling for current month vs adjacent months
+                                  return Container(
+                                    margin: const EdgeInsets.all(1),
+                                    padding: const EdgeInsets.only(top: 4),
+                                    decoration: BoxDecoration(
+                                      color: isToday ? Colors.blue.withOpacity(0.1) :
+                                            (isInMonth ? Colors.white : Colors.grey.shade50),
+                                      border: Border.all(color: isToday ? Colors.blue : Colors.grey.shade200),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        // Date number
+                                        Text(
+                                          '${date.day}',
+                                          style: TextStyle(
+                                            fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                                            color: isInMonth ? Colors.black : Colors.grey.shade500,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        // Event indicators
+                                        Expanded(
+                                          child: filteredEvents.isNotEmpty
+                                            ? ListView.builder(
+                                                // Disable scrolling and scrollbars within day cells
+                                                physics: const NeverScrollableScrollPhysics(),
+                                                padding: const EdgeInsets.symmetric(horizontal: 2),
+                                                // Disable scrollbars
+                                                primary: false,
+                                                // Limit to 2 events to ensure no scrolling is needed
+                                                itemCount: filteredEvents.length > 2 ? 2 : filteredEvents.length,
+                                                itemBuilder: (context, index) {
+                                                  final event = filteredEvents[index];
+                                                  return Container(
+                                                    margin: const EdgeInsets.only(bottom: 2),
+                                                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                                                    decoration: BoxDecoration(
+                                                      color: event.color.withOpacity(0.8),
+                                                      borderRadius: BorderRadius.circular(4),
+                                                    ),
+                                                    child: Text(
+                                                      event.title ?? '',
+                                                      style: const TextStyle(fontSize: 10, color: Colors.white),
+                                                      overflow: TextOverflow.ellipsis,
+                                                      maxLines: 1,
+                                                    ),
+                                                  );
+                                                },
+                                              )
+                                            : const SizedBox.shrink(),
+                                        ),
+                                        // More events indicator
+                                        if (filteredEvents.length > 2)
+                                          Padding(
+                                            padding: const EdgeInsets.only(bottom: 2),
+                                            child: Text(
+                                              '+${filteredEvents.length - 2} more',
+                                              style: TextStyle(fontSize: 9, color: Colors.grey.shade600),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                ],
+                    );
+                  },
+                ),
               ),
-            );
-          },
+            ),
+          ],
         );
       case CalendarViewType.week:
         return WeekView(
@@ -1444,9 +1545,14 @@ class _CalenderpageState extends State<Calenderpage> {
   void _showAddEventDialog(BuildContext context, {DateTime? initialDate}) {
     final TextEditingController titleController = TextEditingController();
     final TextEditingController descriptionController = TextEditingController();
-    DateTime selectedDate = initialDate ?? DateTime.now();
-    TimeOfDay startTime = TimeOfDay.now();
-    TimeOfDay endTime = TimeOfDay(hour: startTime.hour + 1, minute: startTime.minute);
+    DateTime selectedDate = initialDate ?? _focusedDate; // Use the tapped date or focused date
+
+    print('Opening add event dialog for date: ${selectedDate.year}-${selectedDate.month}-${selectedDate.day}');
+
+    // Set reasonable default times (current time for start, +1 hour for end)
+    final now = TimeOfDay.now();
+    TimeOfDay startTime = now;
+    TimeOfDay endTime = TimeOfDay(hour: (now.hour + 1) % 24, minute: now.minute);
     Color selectedColor = Colors.blue;
 
     // Use the generic event dialog for adding events
@@ -1455,11 +1561,11 @@ class _CalenderpageState extends State<Calenderpage> {
       title: 'Add New Event',
       titleController: titleController,
       descriptionController: descriptionController,
-      selectedDate: selectedDate,
+      selectedDate: selectedDate, // Pass the correct date
       startTime: startTime,
       endTime: endTime,
       selectedColor: selectedColor,
-      onSave: (CalendarEventData<Object?> event) {
+      onSave: (CalendarEventData<Object?> event) async {
         // Store the scaffold messenger for later use
         final scaffoldMessenger = ScaffoldMessenger.of(context);
 
@@ -1468,150 +1574,29 @@ class _CalenderpageState extends State<Calenderpage> {
           const SnackBar(content: Text('Creating event...')),
         );
 
+        print('Creating event on date: ${event.date.year}-${event.date.month}-${event.date.day}');
+        print('Event details: ${event.title}, Start: ${event.startTime}, End: ${event.endTime}');
+
         // Save to backend
-        _calendarService.createEvent(event).then((createdEvent) {
-          print('Event created successfully: $createdEvent');
-          if (createdEvent != null) {
-            // Validate the event before adding to the controller
-            if (createdEvent.startTime == null || createdEvent.endTime == null) {
-              print('Failed to add event: Start time or end time is null');
-
-              // Show error in a dialog
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (BuildContext dialogContext) {
-                  return AlertDialog(
-                    title: const Text('Missing Time Information'),
-                    content: const Text(
-                      'The event could not be added to the calendar because either the start time or end time is missing. '
-                      'Please try creating the event again with complete time information.'
-                    ),
-                    backgroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    actions: [
-                      TextButton(
-                        child: const Text('OK', style: TextStyle(color: Color(0xFF255DE1))),
-                        onPressed: () {
-                          Navigator.of(dialogContext).pop();
-                        },
-                      ),
-                    ],
-                  );
-                },
-              );
-              return;
-            }
-
-            if (createdEvent.endTime!.isBefore(createdEvent.startTime!) ||
-                createdEvent.endTime!.isAtSameMomentAs(createdEvent.startTime!)) {
-              print('Failed to add event because of one of the given reasons:');
-              print('1. Start time or end time might be null');
-              print('2. endTime occurs before or at the same time as startTime.');
-              print('Event data:');
-              print('$createdEvent');
-
-              // Show error in a dialog
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (BuildContext dialogContext) {
-                  return AlertDialog(
-                    title: const Text('Invalid Event Time'),
-                    content: const Text(
-                      'The event could not be added to the calendar because the end time is not after the start time. '
-                      'This may be due to time zone conversion issues or data inconsistency.'
-                    ),
-                    backgroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    actions: [
-                      TextButton(
-                        child: const Text('OK', style: TextStyle(color: Color(0xFF255DE1))),
-                        onPressed: () {
-                          Navigator.of(dialogContext).pop();
-                        },
-                      ),
-                    ],
-                  );
-                },
-              );
-              return;
-            }
-
-            // Add the event to the controller with the ID from the backend
-            try {
-              eventController.add(createdEvent);
-              print('Event successfully added to controller');
-
-              // Show a snackbar to confirm
-              scaffoldMessenger.showSnackBar(
-                SnackBar(content: Text('Event "${event.title}" added')),
-              );
-            } catch (e) {
-              print('Error adding event to controller: $e');
-
-              // Show error in a dialog
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (BuildContext dialogContext) {
-                  return AlertDialog(
-                    title: const Text('Calendar Error'),
-                    content: Text(
-                      'There was an error adding the event to the calendar: ${e.toString().substring(0, min(50, e.toString().length))}...\n\n'
-                      'The event was created in the database but could not be displayed in the calendar.'
-                    ),
-                    backgroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    actions: [
-                      TextButton(
-                        child: const Text('OK', style: TextStyle(color: Color(0xFF255DE1))),
-                        onPressed: () {
-                          Navigator.of(dialogContext).pop();
-                        },
-                      ),
-                    ],
-                  );
-                },
-              );
-            }
-          } else {
-            // Show error message when event creation fails
-            scaffoldMessenger.showSnackBar(
-              const SnackBar(
-                content: Text('Failed to create event. Please check your connection and try again.'),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 5),
-              ),
-            );
-          }
-        }).catchError((error) {
-          print('Error in createEvent callback: $error');
-          // Show error message
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (BuildContext dialogContext) {
-              return AlertDialog(
-                title: const Text('Error Creating Event'),
-                content: Text(
-                  'There was an error creating the event: ${error.toString().substring(0, min(50, error.toString().length))}...\n\n'
-                  'Please try again or check your connection.'
-                ),
-                backgroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                actions: [
-                  TextButton(
-                    child: const Text('OK', style: TextStyle(color: Color(0xFF255DE1))),
-                    onPressed: () {
-                      Navigator.of(dialogContext).pop();
-                    },
-                  ),
-                ],
-              );
-            },
+        final createdEvent = await _calendarService.createEvent(event);
+        if (createdEvent != null) {
+          print('Event created successfully: ${createdEvent.title} on ${createdEvent.date}');
+          eventController.add(createdEvent); // Add the event to the controller
+          scaffoldMessenger.showSnackBar(
+            SnackBar(content: Text('Event "${event.title}" added')),
           );
-        });
+
+          // Reload events to ensure the new event is properly displayed
+          _loadEventsForFocusedDate();
+        } else {
+          print('Failed to create event');
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(
+              content: Text('Failed to create event. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       },
     );
   }
