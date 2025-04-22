@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'api',
     'goals',
     'diary',
+    'events',
 ]
 
 ASGI_APPLICATION = 'your_project_name.asgi.application'

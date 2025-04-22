@@ -23,13 +23,14 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/accounts/', include('accounts.urls')),
-   
-    
+
+
     path('',include("api.urls") ),
     path('task/',include("task.urls") ),
     path('gt/', include('goals.urls')),
     path('diary/', include('diary.urls')),  # Added diary app URLs
-    
+    path('api/calendar/', include('events.urls')),  # Added calendar events URLs
+
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

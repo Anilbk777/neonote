@@ -79,8 +79,8 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
   @override
   void initState() {
     super.initState();
-    print('NewDiaryPage initState called');
-    print('Initial widget.initialData: ${widget.initialData}');
+     print('NewDiaryPage initState called');
+     print('Initial widget.initialData: ${widget.initialData}');
     _initializeData();
 
     // Setup the QuillController to handle formatting changes
