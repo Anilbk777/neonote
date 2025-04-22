@@ -146,27 +146,29 @@ class _CalenderpageState extends State<Calenderpage> {
 
       switch (_calendarView) {
         case CalendarViewType.month:
-          // For month view, load the current month and adjacent months
+          // For month view, load only the current month
           final currentMonth = DateTime(_focusedDate.year, _focusedDate.month, 1);
-          final prevMonth = DateTime(currentMonth.year, currentMonth.month - 1, 1);
-          final nextMonth = DateTime(currentMonth.year, currentMonth.month + 1, 1);
+
+          print('Loading events for month: ${currentMonth.year}-${currentMonth.month}');
 
           final currentEvents = await _calendarService.getEventsForMonth(currentMonth.year, currentMonth.month);
-          final prevEvents = await _calendarService.getEventsForMonth(prevMonth.year, prevMonth.month);
-          final nextEvents = await _calendarService.getEventsForMonth(nextMonth.year, nextMonth.month);
 
-          events = [...prevEvents, ...currentEvents, ...nextEvents];
+          print('Current month events: ${currentEvents.length}');
+
+          events = currentEvents;
           break;
 
         case CalendarViewType.week:
           // For week view, get the start and end of the week
           final weekStart = _focusedDate.subtract(Duration(days: _focusedDate.weekday - 1));
           final weekEnd = weekStart.add(const Duration(days: 6));
+          print('Loading events for week: ${weekStart.toString()} to ${weekEnd.toString()}');
           events = await _calendarService.getEventsForRange(weekStart, weekEnd);
           break;
 
         case CalendarViewType.day:
           // For day view, just get the events for that day
+          print('Loading events for day: ${_focusedDate.toString()}');
           events = await _calendarService.getEventsForDay(_focusedDate);
           break;
       }
@@ -174,6 +176,12 @@ class _CalenderpageState extends State<Calenderpage> {
       // Update the event controller
       eventController.removeWhere((_) => true); // Remove all events
       eventController.addAll(events);
+      print('Total events loaded: ${events.length}');
+
+      // Debug: Print all events to verify correct filtering
+      for (var event in events) {
+        print('Event: ${event.title}, Date: ${event.date.toString()}');
+      }
     } catch (e) {
       _handleError(e, 'load events');
     } finally {
@@ -227,11 +235,11 @@ class _CalenderpageState extends State<Calenderpage> {
                       children: [
                         IconButton(
                           icon: const Icon(Icons.today),
-                          onPressed: () {
+                          onPressed: () async {
                             setState(() {
                               _focusedDate = DateTime.now();
                             });
-                            _jumpToToday();
+                            await _jumpToToday();
                           },
                           tooltip: 'Today',
                         ),
@@ -250,6 +258,7 @@ class _CalenderpageState extends State<Calenderpage> {
                           onPressed: () => _nextPage(),
                           tooltip: 'Next',
                         ),
+
                       ],
                     ),
                   ],
@@ -316,7 +325,177 @@ class _CalenderpageState extends State<Calenderpage> {
     );
   }
 
-  void _jumpToToday() {
+  Future<void> _showMonthYearPicker(BuildContext context) async {
+    // Get the current month and year
+    int selectedMonth = _focusedDate.month;
+    int selectedYear = _focusedDate.year;
+
+    // Show a dialog with month and year pickers
+    await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Select Month and Year'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Month dropdown
+                  Row(
+                    children: [
+                      const Text('Month: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 10),
+                      DropdownButton<int>(
+                        value: selectedMonth,
+                        items: List.generate(12, (index) {
+                          return DropdownMenuItem<int>(
+                            value: index + 1,
+                            child: Text(_getMonthName(index + 1)),
+                          );
+                        }),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() {
+                              selectedMonth = value;
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  // Year dropdown
+                  Row(
+                    children: [
+                      const Text('Year: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 10),
+                      DropdownButton<int>(
+                        value: selectedYear,
+                        items: List.generate(11, (index) {
+                          return DropdownMenuItem<int>(
+                            value: DateTime.now().year - 5 + index,
+                            child: Text('${DateTime.now().year - 5 + index}'),
+                          );
+                        }),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() {
+                              selectedYear = value;
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF255DE1),
+                  ),
+                  onPressed: () async {
+                    Navigator.of(context).pop();
+                    // Jump to the selected month and year
+                    final newDate = DateTime(selectedYear, selectedMonth, 1);
+                    // Use the outer setState to update the widget state
+                    this.setState(() {
+                      _focusedDate = newDate;
+                      _isLoading = true; // Show loading indicator
+                    });
+
+                    // Jump to the new month
+                    _monthViewKey.currentState?.jumpToMonth(newDate);
+
+                    // Load events for the new month
+                    await _loadEventsForFocusedDate();
+
+                    // Force a rebuild to ensure the calendar shows the correct events
+                    this.setState(() {});
+                  },
+                  child: const Text('Go'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _showWeekPicker(BuildContext context) async {
+    // First, let the user pick a date
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _focusedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+
+    if (picked != null) {
+      // Calculate the start of the week for the picked date
+      final weekStart = picked.subtract(Duration(days: picked.weekday - 1));
+
+      setState(() {
+        _focusedDate = weekStart;
+        _isLoading = true; // Show loading indicator
+      });
+
+      // Jump to the new week
+      _weekViewKey.currentState?.jumpToWeek(weekStart);
+
+      // Load events for the new week
+      await _loadEventsForFocusedDate();
+
+      // Force a rebuild to ensure the calendar shows the correct events
+      setState(() {});
+    }
+  }
+
+  Future<void> _showDatePicker(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _focusedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+
+    if (picked != null && picked != _focusedDate) {
+      setState(() {
+        _focusedDate = picked;
+        _isLoading = true; // Show loading indicator
+      });
+
+      switch (_calendarView) {
+        case CalendarViewType.month:
+          _monthViewKey.currentState?.jumpToMonth(picked);
+          break;
+        case CalendarViewType.week:
+          _weekViewKey.currentState?.jumpToWeek(picked);
+          break;
+        case CalendarViewType.day:
+          _dayViewKey.currentState?.jumpToDate(picked);
+          break;
+      }
+
+      // Load events for the new date
+      await _loadEventsForFocusedDate();
+
+      // Force a rebuild to ensure the calendar shows the correct events
+      setState(() {});
+    }
+  }
+
+  Future<void> _jumpToToday() async {
+    setState(() {
+      _isLoading = true; // Show loading indicator
+    });
+
     switch (_calendarView) {
       case CalendarViewType.month:
         _monthViewKey.currentState?.jumpToMonth(DateTime.now());
@@ -328,18 +507,48 @@ class _CalenderpageState extends State<Calenderpage> {
         _dayViewKey.currentState?.jumpToDate(DateTime.now());
         break;
     }
+
+    // Load events for today
+    await _loadEventsForFocusedDate();
+
+    // Force a rebuild to ensure the calendar shows the correct events
+    setState(() {});
   }
 
   void _previousPage() {
     switch (_calendarView) {
       case CalendarViewType.month:
-        _monthViewKey.currentState?.previousPage();
+        // Calculate the previous month date
+        final prevMonth = DateTime(_focusedDate.year, _focusedDate.month - 1, 1);
+        setState(() {
+          _focusedDate = prevMonth;
+        });
+        // Jump directly to the previous month instead of using animation
+        _monthViewKey.currentState?.jumpToMonth(prevMonth);
+        // Explicitly load events for the new month
+        _loadEventsForFocusedDate();
         break;
       case CalendarViewType.week:
-        _weekViewKey.currentState?.previousPage();
+        // Calculate the previous week date
+        final prevWeek = _focusedDate.subtract(const Duration(days: 7));
+        setState(() {
+          _focusedDate = prevWeek;
+        });
+        // Jump directly to the previous week instead of using animation
+        _weekViewKey.currentState?.jumpToWeek(prevWeek);
+        // Explicitly load events for the new week
+        _loadEventsForFocusedDate();
         break;
       case CalendarViewType.day:
-        _dayViewKey.currentState?.previousPage();
+        // Calculate the previous day date
+        final prevDay = _focusedDate.subtract(const Duration(days: 1));
+        setState(() {
+          _focusedDate = prevDay;
+        });
+        // Jump directly to the previous day instead of using animation
+        _dayViewKey.currentState?.jumpToDate(prevDay);
+        // Explicitly load events for the new day
+        _loadEventsForFocusedDate();
         break;
     }
   }
@@ -347,13 +556,37 @@ class _CalenderpageState extends State<Calenderpage> {
   void _nextPage() {
     switch (_calendarView) {
       case CalendarViewType.month:
-        _monthViewKey.currentState?.nextPage();
+        // Calculate the next month date
+        final nextMonth = DateTime(_focusedDate.year, _focusedDate.month + 1, 1);
+        setState(() {
+          _focusedDate = nextMonth;
+        });
+        // Jump directly to the next month instead of using animation
+        _monthViewKey.currentState?.jumpToMonth(nextMonth);
+        // Explicitly load events for the new month
+        _loadEventsForFocusedDate();
         break;
       case CalendarViewType.week:
-        _weekViewKey.currentState?.nextPage();
+        // Calculate the next week date
+        final nextWeek = _focusedDate.add(const Duration(days: 7));
+        setState(() {
+          _focusedDate = nextWeek;
+        });
+        // Jump directly to the next week instead of using animation
+        _weekViewKey.currentState?.jumpToWeek(nextWeek);
+        // Explicitly load events for the new week
+        _loadEventsForFocusedDate();
         break;
       case CalendarViewType.day:
-        _dayViewKey.currentState?.nextPage();
+        // Calculate the next day date
+        final nextDay = _focusedDate.add(const Duration(days: 1));
+        setState(() {
+          _focusedDate = nextDay;
+        });
+        // Jump directly to the next day instead of using animation
+        _dayViewKey.currentState?.jumpToDate(nextDay);
+        // Explicitly load events for the new day
+        _loadEventsForFocusedDate();
         break;
     }
   }
@@ -364,12 +597,25 @@ class _CalenderpageState extends State<Calenderpage> {
         return MonthView(
           key: _monthViewKey,
           controller: eventController,
-          onEventTap: (event, date) {
-            _showEventDetailsDialog(context, event, date);
+          onEventTap: (events, date) {
+            // Handle the event tap
+            _showEventDetailsDialog(context, events, date);
           },
           onCellTap: (events, date) {
-            if (events.isNotEmpty) {
-              _showEventDetailsDialog(context, events, date);
+            if (events is List<CalendarEventData<Object?>>) {
+              // Filter events to only show events for this specific date
+              final filteredEvents = events.where((event) {
+                return event.date.year == date.year &&
+                       event.date.month == date.month &&
+                       event.date.day == date.day;
+              }).toList();
+
+              if (filteredEvents.isNotEmpty) {
+                _showEventDetailsDialog(context, filteredEvents, date);
+              } else {
+                // Create event on empty cell tap
+                _showAddEventDialog(context, initialDate: date);
+              }
             } else {
               // Create event on empty cell tap
               _showAddEventDialog(context, initialDate: date);
@@ -384,6 +630,19 @@ class _CalenderpageState extends State<Calenderpage> {
           // Hide the header as we're using our custom header
           headerBuilder: (date) => const SizedBox.shrink(),
           cellBuilder: (date, events, isToday, isInMonth, hideDaysNotInMonth) {
+            // Filter events to only show events for this specific date AND only for the current month
+            List<CalendarEventData<Object?>> filteredEvents = [];
+            if (events is List<CalendarEventData<Object?>>) {
+              filteredEvents = events.where((event) {
+                // Make sure the event date matches this cell's date exactly
+                // AND only show events for the current month (isInMonth check)
+                return event.date.year == date.year &&
+                       event.date.month == date.month &&
+                       event.date.day == date.day &&
+                       isInMonth; // Only show events for the current month
+              }).toList();
+            }
+
             // Custom cell builder for better styling
             return Container(
               margin: const EdgeInsets.all(1),
@@ -406,13 +665,13 @@ class _CalenderpageState extends State<Calenderpage> {
                   const SizedBox(height: 2),
                   // Event indicators
                   Expanded(
-                    child: events.isNotEmpty
+                    child: filteredEvents.isNotEmpty
                         ? ListView.builder(
                             physics: const NeverScrollableScrollPhysics(),
                             padding: const EdgeInsets.symmetric(horizontal: 2),
-                            itemCount: events.length > 3 ? 3 : events.length,
+                            itemCount: filteredEvents.length > 3 ? 3 : filteredEvents.length,
                             itemBuilder: (context, index) {
-                              final event = events[index];
+                              final event = filteredEvents[index];
                               return Container(
                                 margin: const EdgeInsets.only(bottom: 2),
                                 padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -432,11 +691,11 @@ class _CalenderpageState extends State<Calenderpage> {
                         : const SizedBox.shrink(),
                   ),
                   // More events indicator
-                  if (events.length > 3)
+                  if (filteredEvents.length > 3)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 2),
                       child: Text(
-                        '+${events.length - 3} more',
+                        '+${filteredEvents.length - 3} more',
                         style: TextStyle(fontSize: 9, color: Colors.grey.shade600),
                       ),
                     ),
@@ -449,8 +708,9 @@ class _CalenderpageState extends State<Calenderpage> {
         return WeekView(
           key: _weekViewKey,
           controller: eventController,
-          onEventTap: (event, date) {
-            _showEventDetailsDialog(context, event, date);
+          onEventTap: (events, date) {
+            // Handle the event tap
+            _showEventDetailsDialog(context, events, date);
           },
           onDateLongPress: (date) {
             _showAddEventDialog(context, initialDate: date);
@@ -464,17 +724,27 @@ class _CalenderpageState extends State<Calenderpage> {
           // Hide the header as we're using our custom header
           weekPageHeaderBuilder: (startDate, endDate) => const SizedBox.shrink(),
           eventTileBuilder: (date, events, boundary, startTime, endTime) {
+            // Filter events to only show events for this specific date
+            List<CalendarEventData<Object?>> filteredEvents = [];
+            if (events is List<CalendarEventData<Object?>>) {
+              filteredEvents = events.where((event) {
+                return event.date.year == date.year &&
+                       event.date.month == date.month &&
+                       event.date.day == date.day;
+              }).toList();
+            }
+
             // Custom event tile for week view
-            if (events.isEmpty) return const SizedBox.shrink();
+            if (filteredEvents.isEmpty) return const SizedBox.shrink();
             return Container(
               decoration: BoxDecoration(
-                color: events[0].color.withOpacity(0.8),
+                color: filteredEvents[0].color.withOpacity(0.8),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Padding(
                 padding: const EdgeInsets.all(4.0),
                 child: Text(
-                  events[0].title ?? '',
+                  filteredEvents[0].title ?? '',
                   style: const TextStyle(color: Colors.white, fontSize: 12),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -486,8 +756,9 @@ class _CalenderpageState extends State<Calenderpage> {
         return DayView(
           key: _dayViewKey,
           controller: eventController,
-          onEventTap: (event, date) {
-            _showEventDetailsDialog(context, event, date);
+          onEventTap: (events, date) {
+            // Handle the event tap
+            _showEventDetailsDialog(context, events, date);
           },
           onDateLongPress: (date) {
             _showAddEventDialog(context, initialDate: date);
@@ -501,11 +772,21 @@ class _CalenderpageState extends State<Calenderpage> {
           // Hide the header as we're using our custom header
           dayTitleBuilder: (date) => const SizedBox.shrink(),
           eventTileBuilder: (date, events, boundary, startTime, endTime) {
+            // Filter events to only show events for this specific date
+            List<CalendarEventData<Object?>> filteredEvents = [];
+            if (events is List<CalendarEventData<Object?>>) {
+              filteredEvents = events.where((event) {
+                return event.date.year == date.year &&
+                       event.date.month == date.month &&
+                       event.date.day == date.day;
+              }).toList();
+            }
+
             // Custom event tile for day view
-            if (events.isEmpty) return const SizedBox.shrink();
+            if (filteredEvents.isEmpty) return const SizedBox.shrink();
             return Container(
               decoration: BoxDecoration(
-                color: events[0].color.withOpacity(0.8),
+                color: filteredEvents[0].color.withOpacity(0.8),
                 borderRadius: BorderRadius.circular(4),
               ),
               height: 34.0, // Fixed height to prevent overflow
@@ -517,15 +798,15 @@ class _CalenderpageState extends State<Calenderpage> {
                   children: [
                     Flexible(
                       child: Text(
-                        events[0].title ?? '',
+                        filteredEvents[0].title ?? '',
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (events[0].description?.isNotEmpty ?? false)
+                    if (filteredEvents[0].description?.isNotEmpty ?? false)
                       Flexible(
                         child: Text(
-                          events[0].description ?? '',
+                          filteredEvents[0].description ?? '',
                           style: const TextStyle(color: Colors.white, fontSize: 12),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
@@ -560,15 +841,39 @@ class _CalenderpageState extends State<Calenderpage> {
   }
 
   void _showEventDetailsDialog(BuildContext context, dynamic eventOrEvents, DateTime date) {
+    print('_showEventDetailsDialog called with date: ${date.toString()}');
+
     // Convert to list if it's a single event
     List<CalendarEventData<Object?>> events;
     if (eventOrEvents is List<CalendarEventData<Object?>>) {
+      print('eventOrEvents is a List with ${eventOrEvents.length} events');
       events = eventOrEvents;
     } else if (eventOrEvents is CalendarEventData<Object?>) {
+      print('eventOrEvents is a single CalendarEventData: ${eventOrEvents.title}');
       events = [eventOrEvents];
     } else {
+      print('eventOrEvents is an unexpected type: ${eventOrEvents.runtimeType}');
       // Fallback for unexpected types
       events = [];
+    }
+
+    print('Before filtering: ${events.length} events');
+    for (var event in events) {
+      print('Event: ${event.title}, Date: ${event.date.toString()}');
+    }
+
+    // Filter events to only show events for this specific date
+    events = events.where((event) {
+      final matches = event.date.year == date.year &&
+             event.date.month == date.month &&
+             event.date.day == date.day;
+      print('Event ${event.title} on ${event.date.toString()} matches ${date.toString()}: $matches');
+      return matches;
+    }).toList();
+
+    print('After filtering: ${events.length} events');
+    for (var event in events) {
+      print('Filtered Event: ${event.title}, Date: ${event.date.toString()}');
     }
     showDialog(
       context: context,
