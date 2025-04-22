@@ -10,7 +10,7 @@ import 'package:project/dashboard.dart';
 import 'package:project/personalScreen/inbox.dart';
 import 'package:project/personalScreen/bin.dart'; // Import for BinPage and BinProvider
 import 'package:project/personalScreen/calender.dart';
-import 'package:project/personalScreen/templates.dart';
+
 import 'package:project/personalScreen/goal.dart';
 import 'package:project/personalScreen/tasklist.dart';
 import 'package:project/personalScreen/content_page.dart';
@@ -104,13 +104,13 @@ class _CustomScaffoldState extends State<CustomScaffold> {
                       ),
                     ),
                     for (var page in personalSpacePages)
-                      _buildSidebarItem(Icons.book, page, _getPageByName(page)),
+                      _buildSidebarItem(_getIconForPage(page), page, _getPageByName(page)),
                     Consumer<PagesProvider>(
                       builder: (context, pagesProvider, child) {
                         return Column(
                           children: pagesProvider.pages.map((pageModel) {
                             return ListTile(
-                              leading: const Icon(Icons.book, color: Colors.black54),
+                              leading: const Icon(Icons.description, color: Colors.black54), // Page icon
                               title: Text(
                                 pageModel.title,
                                 overflow: TextOverflow.ellipsis,
@@ -136,7 +136,7 @@ class _CustomScaffoldState extends State<CustomScaffold> {
                     const Divider(),
                     _buildSidebarItem(Icons.calendar_today, 'Calendar', Calenderpage()),
                     _buildSidebarItem(Icons.delete, 'Bin', BinPage()),
-                    _buildSidebarItem(Icons.insert_drive_file, 'Templates', TemplatePage()),
+
                   ],
                 ),
               ),
@@ -188,6 +188,19 @@ class _CustomScaffoldState extends State<CustomScaffold> {
         return TaskScreen();
       default:
         return Container();
+    }
+  }
+
+  IconData _getIconForPage(String pageName) {
+    switch (pageName) {
+      case 'Diary':
+        return Icons.menu_book; // Book icon for diary
+      case 'Goals':
+        return Icons.emoji_events; // Goal/trophy icon
+      case 'Task List':
+        return Icons.check_circle_outline; // Task icon
+      default:
+        return Icons.description; // Default page icon
     }
   }
 

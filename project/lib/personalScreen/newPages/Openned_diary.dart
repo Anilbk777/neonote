@@ -19,6 +19,7 @@ import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'package:project/personalScreen/bin.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class NewDiaryPage extends StatefulWidget {
   final Map<String, dynamic>? initialData;
@@ -472,6 +473,108 @@ class _NewDiaryPageState extends State<NewDiaryPage> {
         // Force a rebuild to apply the current formatting
       });
     });
+  }
+
+  // Method to get the link at the current cursor position
+  String? _getLinkAtCursor() {
+    try {
+      final selection = _quillController.selection;
+      final document = _quillController.document;
+
+      if (selection.baseOffset >= 0) {
+        // Try to get the leaf node at the cursor position
+        final leaf = document.querySegmentLeafNode(selection.baseOffset).leaf;
+        if (leaf != null && leaf.style.attributes.containsKey('link')) {
+          return leaf.style.attributes['link']?.value;
+        }
+
+        // If no link at cursor, try to check if there's a link in the selected text
+        if (selection.baseOffset != selection.extentOffset) {
+          final text = document.getPlainText(selection.baseOffset, selection.extentOffset);
+          // Check if the text looks like a URL
+          final urlRegex = RegExp(
+            r'(https?://[^\s]+)|(www\.[^\s]+)|([^\s]+\.(com|org|net|edu|gov|io|co)[^\s]*)',
+            caseSensitive: false
+          );
+          if (urlRegex.hasMatch(text)) {
+            return text;
+          }
+        }
+      }
+    } catch (e) {
+      print('Error in _getLinkAtCursor: $e');
+    }
+    return null;
+  }
+
+  // Method to handle link taps
+  Future<void> _handleLinkTap(String? link) async {
+    if (link != null && link.isNotEmpty) {
+      print('Attempting to open link: $link');
+      try {
+        // Ensure the link has a scheme
+        String processedLink = link;
+        if (!link.startsWith('http://') && !link.startsWith('https://')) {
+          if (link.startsWith('www.')) {
+            processedLink = 'https://$link';
+            print('Added https:// prefix to link: $processedLink');
+          } else {
+            // Try to determine if it's a valid domain
+            final RegExp domainRegex = RegExp(r'^[a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}$|^[a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}$');
+            if (domainRegex.hasMatch(link)) {
+              processedLink = 'https://$link';
+              print('Added https:// prefix to domain: $processedLink');
+            }
+          }
+        }
+
+        final Uri uri = Uri.parse(processedLink);
+        print('URI parsed: $uri');
+
+        // For desktop platforms, ensure we're using the correct mode
+        final bool canLaunch = await canLaunchUrl(uri);
+        print('Can launch URL: $canLaunch');
+
+        if (canLaunch) {
+          // Use platformDefaultBrowser for desktop platforms
+          final bool launched = await launchUrl(
+            uri,
+            mode: LaunchMode.platformDefault,
+          );
+          print('Launch result: $launched');
+
+          if (!launched) {
+            print('launchUrl returned false, trying externalApplication mode');
+            // Try with externalApplication mode as fallback
+            final bool launchedExternal = await launchUrl(
+              uri,
+              mode: LaunchMode.externalApplication,
+            );
+
+            if (!launchedExternal) {
+              print('externalApplication mode also failed');
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to open link: $processedLink')),
+              );
+            } else {
+              print('Successfully launched with externalApplication mode');
+            }
+          }
+        } else {
+          print('canLaunchUrl returned false for: $processedLink');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not open link: $processedLink')),
+          );
+        }
+      } catch (e) {
+        print('Error launching URL: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error opening link: $e')),
+        );
+      }
+    } else {
+      print('Link is null or empty');
+    }
   }
 
   // Method to pick and embed an image
@@ -1027,89 +1130,102 @@ if (title.isEmpty || content.isEmpty) {
                   Expanded(
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: QuillEditor(
-                        controller: _quillController,
-                        scrollController: _scrollController,
-                        focusNode: _focusNode,
-                        config: QuillEditorConfig(
-                          // readOnly is set on the controller, not in the config
-                          placeholder: 'Write your thoughts here...',
-                          padding: const EdgeInsets.all(0),
-                          // Set autoFocus to true to ensure the editor receives focus
-                          // This helps with applying formatting to new text
-                          autoFocus: true,
-                          expands: true,
-                          scrollable: true,
-                          keyboardAppearance: Brightness.light,
-                          enableInteractiveSelection: true,
-                          // Enable retaining formatting when typing new text
-                          // This makes the toolbar buttons work for new text
-                          // Use default styles for simplicity and compatibility
-                          customStyles: DefaultStyles(
-                            paragraph: DefaultTextBlockStyle(
-                              TextStyle(
-                                fontSize: 16,
-                                height: 1.5,
-                                color: _textColor,
+                      child: GestureDetector(
+                        onTapUp: (details) {
+                          final link = _getLinkAtCursor();
+                          print('Tap detected, link: $link');
+                          if (link != null && link.isNotEmpty) {
+                            _handleLinkTap(link);
+                          }
+                        },
+                        child: QuillEditor(
+                          controller: _quillController,
+                          scrollController: _scrollController,
+                          focusNode: _focusNode,
+                          config: QuillEditorConfig(
+                            // readOnly is set on the controller, not in the config
+                            placeholder: 'Write your thoughts here...',
+                            padding: const EdgeInsets.all(0),
+                            // Set autoFocus to true to ensure the editor receives focus
+                            // This helps with applying formatting to new text
+                            autoFocus: true,
+                            expands: true,
+                            scrollable: true,
+                            keyboardAppearance: Brightness.light,
+                            enableInteractiveSelection: true,
+                            // Enable retaining formatting when typing new text
+                            // This makes the toolbar buttons work for new text
+                            // Use default styles for simplicity and compatibility
+                            customStyles: DefaultStyles(
+                              paragraph: DefaultTextBlockStyle(
+                                TextStyle(
+                                  fontSize: 16,
+                                  height: 1.5,
+                                  color: _textColor,
+                                ),
+                                const HorizontalSpacing(0, 0),  // horizontalSpacing
+                                const VerticalSpacing(0, 0),    // verticalSpacing
+                                const VerticalSpacing(0, 0),    // lineSpacing
+                                null,                           // decoration
                               ),
-                              const HorizontalSpacing(0, 0),  // horizontalSpacing
-                              const VerticalSpacing(0, 0),    // verticalSpacing
-                              const VerticalSpacing(0, 0),    // lineSpacing
-                              null,                           // decoration
+                              link: const TextStyle(
+                                color: Colors.blue,
+                                decoration: TextDecoration.underline,
+                              ),
                             ),
-                          ),
-                          // Configure embedBuilders to handle images and videos with fixed size
-                          embedBuilders: [
-                            ...FlutterQuillEmbeds.editorBuilders(
-                              imageEmbedConfig: QuillEditorImageEmbedConfig(
-                                imageProviderBuilder: (context, imageSource) {
-                                  if (imageSource.startsWith('http') && !imageSource.startsWith('blob:http')) {
-                                    // Regular network image (not blob)
-                                    return NetworkImage(imageSource);
-                                  } else if (imageSource.startsWith('data:')) {
-                                    // Data URL (for web)
-                                    return MemoryImage(Uri.parse(imageSource).data!.contentAsBytes());
-                                  } else if (imageSource.startsWith('blob:')) {
-                                    // Blob URL (for web)
-                                    print('Blob URL detected: $imageSource');
-                                    try {
-                                      // Attempt to load a placeholder
-                                      return NetworkImage('https://via.placeholder.com/300x200?text=Video');
-                                    } catch (e) {
-                                      print('Error loading placeholder image: $e');
-                                      // Fallback to a default color or another placeholder
-                                      return MemoryImage(Uint8List(0)); // Empty image
+                            // Configure embedBuilders to handle images and videos with fixed size
+                            embedBuilders: [
+                              ...FlutterQuillEmbeds.editorBuilders(
+                                imageEmbedConfig: QuillEditorImageEmbedConfig(
+                                  imageProviderBuilder: (context, imageSource) {
+                                    if (imageSource.startsWith('http') && !imageSource.startsWith('blob:http')) {
+                                      // Regular network image (not blob)
+                                      return NetworkImage(imageSource);
+                                    } else if (imageSource.startsWith('data:')) {
+                                      // Data URL (for web)
+                                      return MemoryImage(Uri.parse(imageSource).data!.contentAsBytes());
+                                    } else if (imageSource.startsWith('blob:')) {
+                                      // Blob URL (for web)
+                                      print('Blob URL detected: $imageSource');
+                                      try {
+                                        // Attempt to load a placeholder
+                                        return NetworkImage('https://via.placeholder.com/300x200?text=Video');
+                                      } catch (e) {
+                                        print('Error loading placeholder image: $e');
+                                        // Fallback to a default color or another placeholder
+                                        return MemoryImage(Uint8List(0)); // Empty image
+                                      }
+                                    } else if (kIsWeb) {
+                                      // For web, we can't use FileImage, so we'll use a network placeholder
+                                      print('Warning: Unsupported image source on web: $imageSource');
+                                      return NetworkImage('https://via.placeholder.com/300x200?text=Image');
+                                    } else if (imageSource.startsWith('file:')) {
+                                      // File URI (for mobile)
+                                      return FileImage(File(imageSource.replaceFirst('file:', '')));
+                                    } else {
+                                      // Local file path (for mobile)
+                                      return FileImage(File(imageSource));
                                     }
-                                  } else if (kIsWeb) {
-                                    // For web, we can't use FileImage, so we'll use a network placeholder
-                                    print('Warning: Unsupported image source on web: $imageSource');
-                                    return NetworkImage('https://via.placeholder.com/300x200?text=Image');
-                                  } else if (imageSource.startsWith('file:')) {
-                                    // File URI (for mobile)
-                                    return FileImage(File(imageSource.replaceFirst('file:', '')));
-                                  } else {
-                                    // Local file path (for mobile)
-                                    return FileImage(File(imageSource));
-                                  }
-                                },
-                                // Callback when an image is removed
-                                onImageRemovedCallback: (imageSource) async {
-                                  print('Image removed: $imageSource');
-                                  return; // Return a completed Future<void>
-                                },
+                                  },
+                                  // Callback when an image is removed
+                                  onImageRemovedCallback: (imageSource) async {
+                                    print('Image removed: $imageSource');
+                                    return; // Return a completed Future<void>
+                                  },
+                                ),
+                                videoEmbedConfig: QuillEditorVideoEmbedConfig(
+                                  onVideoInit: (videoContainerKey) {
+                                    print('Video initialized with key: $videoContainerKey');
+                                  },
+                                  customVideoBuilder: (videoUrl, readOnly) {
+                                    print('Building custom video for URL: $videoUrl');
+                                    return null; // Return null to use default video builder
+                                  },
+                                ),
                               ),
-                              videoEmbedConfig: QuillEditorVideoEmbedConfig(
-                                onVideoInit: (videoContainerKey) {
-                                  print('Video initialized with key: $videoContainerKey');
-                                },
-                                customVideoBuilder: (videoUrl, readOnly) {
-                                  print('Building custom video for URL: $videoUrl');
-                                  return null; // Return null to use default video builder
-                                },
-                              ),
-                            ),
-                            // Custom video embed builder removed
-                          ],
+                              // Custom video embed builder removed
+                            ],
+                          ),
                         ),
                       ),
                     ),
