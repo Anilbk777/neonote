@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'login_page.dart';
 import 'package:project/services/local_storage.dart';
+import 'package:project/services/user_service.dart'; // Import UserService
 import 'package:project/personalScreen/content_page.dart';
 import 'package:project/providers/pages_provider.dart';
 import 'package:project/services/diary_service.dart';
@@ -268,6 +269,10 @@ Future<void> _logout() async {
 
   // Clear token from LocalStorage (flutter_secure_storage)
   await LocalStorage.clearToken(); // Assuming LocalStorage handles secure storage
+
+  // Clear cached user ID
+  UserService.clearCachedUserId();
+  print('✅ Cleared cached user ID');
 
   // Clear any cached data or pages
   setState(() {

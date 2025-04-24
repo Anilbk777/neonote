@@ -41,4 +41,4 @@ from .models import CustomUser
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ['full_name']  # Include only the fields you want to expose
+        fields = ['id', 'full_name']  # Include id and full_name

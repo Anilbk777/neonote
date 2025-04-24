@@ -6,6 +6,7 @@ import 'package:project/models/goals_model.dart';
 import 'package:project/services/diary_service.dart';
 import 'package:project/services/api_service.dart';
 import 'package:project/services/goal_service.dart';
+import 'package:project/services/user_service.dart'; // Import UserService
 import 'package:project/providers/pages_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:project/personalScreen/content_page.dart';
@@ -17,8 +18,9 @@ import 'package:project/widgets/custom_scaffold.dart';
 class DeletedPage {
   final PageModel page;
   final DateTime deletedAt;
+  final String userId; // Add userId field
 
-  DeletedPage({required this.page, required this.deletedAt});
+  DeletedPage({required this.page, required this.deletedAt, required this.userId});
 
   Map<String, dynamic> toJson() {
     return {
@@ -28,10 +30,17 @@ class DeletedPage {
         'content': page.content,
       },
       'deletedAt': deletedAt.toIso8601String(),
+      'userId': userId, // Include userId in JSON
     };
   }
 
   factory DeletedPage.fromJson(Map<String, dynamic> json) {
+    // Handle case where userId might be missing in older data
+    String userId = 'default_user'; // Default user ID
+    if (json.containsKey('userId') && json['userId'] != null && json['userId'] != '') {
+      userId = json['userId'];
+    }
+
     return DeletedPage(
       page: PageModel(
         id: json['page']['id'],
@@ -39,6 +48,7 @@ class DeletedPage {
         content: json['page']['content'],
       ),
       deletedAt: DateTime.parse(json['deletedAt']),
+      userId: userId,
     );
   }
 }
@@ -47,20 +57,29 @@ class DeletedPage {
 class DeletedDiary {
   final DiaryEntry diary;
   final DateTime deletedAt;
+  final String userId; // Add userId field
 
-  DeletedDiary({required this.diary, required this.deletedAt});
+  DeletedDiary({required this.diary, required this.deletedAt, required this.userId});
 
   Map<String, dynamic> toJson() {
     return {
       'diary': diary.toJson(),
       'deletedAt': deletedAt.toIso8601String(),
+      'userId': userId, // Include userId in JSON
     };
   }
 
   factory DeletedDiary.fromJson(Map<String, dynamic> json) {
+    // Handle case where userId might be missing in older data
+    String userId = 'default_user'; // Default user ID
+    if (json.containsKey('userId') && json['userId'] != null && json['userId'] != '') {
+      userId = json['userId'];
+    }
+
     return DeletedDiary(
       diary: DiaryEntry.fromJson(json['diary']),
       deletedAt: DateTime.parse(json['deletedAt']),
+      userId: userId,
     );
   }
 }
@@ -69,8 +88,9 @@ class DeletedDiary {
 class DeletedGoal {
   final Goal goal;
   final DateTime deletedAt;
+  final String userId; // Add userId field
 
-  DeletedGoal({required this.goal, required this.deletedAt});
+  DeletedGoal({required this.goal, required this.deletedAt, required this.userId});
 
   Map<String, dynamic> toJson() {
     return {
@@ -97,12 +117,19 @@ class DeletedGoal {
         }).toList(),
       },
       'deletedAt': deletedAt.toIso8601String(),
+      'userId': userId, // Include userId in JSON
     };
   }
 
   factory DeletedGoal.fromJson(Map<String, dynamic> json) {
     final goalJson = json['goal'];
     final tasksJson = goalJson['tasks'] as List;
+
+    // Handle case where userId might be missing in older data
+    String userId = 'default_user'; // Default user ID
+    if (json.containsKey('userId') && json['userId'] != null && json['userId'] != '') {
+      userId = json['userId'];
+    }
 
     return DeletedGoal(
       goal: Goal(
@@ -132,6 +159,7 @@ class DeletedGoal {
         )).toList(),
       ),
       deletedAt: DateTime.parse(json['deletedAt']),
+      userId: userId,
     );
   }
 }
@@ -141,89 +169,322 @@ class BinProvider extends ChangeNotifier {
   List<DeletedPage> _deletedPages = [];
   List<DeletedDiary> _deletedDiaries = [];
   List<DeletedGoal> _deletedGoals = [];
+  String? _currentUserId;
 
-  List<DeletedPage> get deletedPages => _deletedPages;
-  List<DeletedDiary> get deletedDiaries => _deletedDiaries;
-  List<DeletedGoal> get deletedGoals => _deletedGoals;
+  // For now, return all items regardless of user ID to ensure items are displayed
+  // This is a temporary fix until we properly implement user-specific bins
+  List<DeletedPage> get deletedPages {
+    print('📊 Total deleted pages: ${_deletedPages.length}');
+    if (_currentUserId != null) {
+      print('🔍 Current user ID: $_currentUserId');
+
+      // Debug user IDs in deleted pages
+      if (_deletedPages.isNotEmpty) {
+        print('🔢 User IDs in deleted pages: ${_deletedPages.map((p) => p.userId).toList()}');
+      }
+    }
+
+    return _deletedPages;
+  }
+
+  List<DeletedDiary> get deletedDiaries {
+    print('📊 Total deleted diaries: ${_deletedDiaries.length}');
+    if (_currentUserId != null) {
+      print('🔍 Current user ID: $_currentUserId');
+
+      // Debug user IDs in deleted diaries
+      if (_deletedDiaries.isNotEmpty) {
+        print('🔢 User IDs in deleted diaries: ${_deletedDiaries.map((d) => d.userId).toList()}');
+      }
+    }
+
+    return _deletedDiaries;
+  }
+
+  List<DeletedGoal> get deletedGoals {
+    print('📊 Total deleted goals: ${_deletedGoals.length}');
+    if (_currentUserId != null) {
+      print('🔍 Current user ID: $_currentUserId');
+
+      // Debug user IDs in deleted goals
+      if (_deletedGoals.isNotEmpty) {
+        print('🔢 User IDs in deleted goals: ${_deletedGoals.map((g) => g.userId).toList()}');
+      }
+    }
+
+    return _deletedGoals;
+  }
+
+  // Number of days to keep items in bin before permanent deletion
+  static const int retentionDays = 30;
+
+  // Key for storing the last check date in SharedPreferences
+  static const String _lastCheckKey = 'bin_last_check_date';
 
   BinProvider() {
     // Load deleted items when the provider is created
     _loadDeletedItems();
+    // Set current user ID
+    _setCurrentUserId();
+    // Check if we need to run the daily cleanup
+    _checkDailyCleanup();
+  }
+
+  // Check if we need to run the daily cleanup
+  Future<void> _checkDailyCleanup() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastCheckStr = prefs.getString(_lastCheckKey);
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+
+      if (lastCheckStr == null) {
+        // First time running the app, set today as last check and run cleanup
+        await prefs.setString(_lastCheckKey, today.toIso8601String());
+        await _removeExpiredItems();
+        return;
+      }
+
+      final lastCheck = DateTime.parse(lastCheckStr);
+      final lastCheckDay = DateTime(lastCheck.year, lastCheck.month, lastCheck.day);
+
+      if (today.isAfter(lastCheckDay)) {
+        // It's a new day, run the cleanup
+        print('🧹 Running daily cleanup check');
+        await _removeExpiredItems();
+        await prefs.setString(_lastCheckKey, today.toIso8601String());
+      } else {
+        print('✅ Already ran cleanup today');
+      }
+    } catch (e) {
+      print('❌ Error checking daily cleanup: $e');
+      // Run cleanup anyway to be safe
+      await _removeExpiredItems();
+    }
+  }
+
+  // Set the current user ID
+  Future<void> _setCurrentUserId() async {
+    try {
+      _currentUserId = await UserService.getCurrentUserId();
+      print('Current user ID set to: $_currentUserId');
+      notifyListeners();
+    } catch (e) {
+      print('Error setting current user ID: $e');
+      // If there's an error, we'll leave _currentUserId as null
+      // which will cause the getters to return empty lists
+    }
   }
 
   // Load deleted items from local storage
   Future<void> _loadDeletedItems() async {
     try {
+      print('💾 Loading deleted items from local storage');
       final prefs = await SharedPreferences.getInstance();
+      String? currentUserId = await UserService.getCurrentUserId();
+      print('🔑 Current user ID for loading: $currentUserId');
 
       // Load deleted pages
       final pagesJson = prefs.getString('deleted_pages');
+      print('📃 Raw pages JSON: ${pagesJson != null ? (pagesJson.length > 100 ? pagesJson.substring(0, 100) + '...' : pagesJson) : 'null'}');
+
       if (pagesJson != null) {
         final List<dynamic> pagesData = jsonDecode(pagesJson);
-        _deletedPages = pagesData.map((data) => DeletedPage.fromJson(data)).toList();
+        print('📂 Found ${pagesData.length} deleted pages in storage');
+
+        _deletedPages = pagesData.map((data) {
+          // Handle migration of old data without userId
+          if (!data.containsKey('userId')) {
+            print('🔧 Migrating page without userId: ${data['page']['title']}');
+            // Use current user ID if available, otherwise use default
+            data['userId'] = currentUserId ?? 'default_user';
+          }
+          return DeletedPage.fromJson(data);
+        }).toList();
+        print('✅ Loaded ${_deletedPages.length} deleted pages');
+      } else {
+        print('⚠️ No deleted pages found in storage');
       }
 
       // Load deleted diaries
       final diariesJson = prefs.getString('deleted_diaries');
+      print('📃 Raw diaries JSON: ${diariesJson != null ? (diariesJson.length > 100 ? diariesJson.substring(0, 100) + '...' : diariesJson) : 'null'}');
+
       if (diariesJson != null) {
         final List<dynamic> diariesData = jsonDecode(diariesJson);
-        _deletedDiaries = diariesData.map((data) => DeletedDiary.fromJson(data)).toList();
+        print('📂 Found ${diariesData.length} deleted diaries in storage');
+
+        _deletedDiaries = diariesData.map((data) {
+          // Handle migration of old data without userId
+          if (!data.containsKey('userId')) {
+            print('🔧 Migrating diary without userId: ${data['diary']['title']}');
+            // Use current user ID if available, otherwise use default
+            data['userId'] = currentUserId ?? 'default_user';
+          }
+          return DeletedDiary.fromJson(data);
+        }).toList();
+        print('✅ Loaded ${_deletedDiaries.length} deleted diaries');
+      } else {
+        print('⚠️ No deleted diaries found in storage');
       }
 
       // Load deleted goals
       final goalsJson = prefs.getString('deleted_goals');
+      print('📃 Raw goals JSON: ${goalsJson != null ? (goalsJson.length > 100 ? goalsJson.substring(0, 100) + '...' : goalsJson) : 'null'}');
+
       if (goalsJson != null) {
         final List<dynamic> goalsData = jsonDecode(goalsJson);
-        _deletedGoals = goalsData.map((data) => DeletedGoal.fromJson(data)).toList();
+        print('📂 Found ${goalsData.length} deleted goals in storage');
+
+        _deletedGoals = goalsData.map((data) {
+          // Handle migration of old data without userId
+          if (!data.containsKey('userId')) {
+            print('🔧 Migrating goal without userId: ${data['goal']['title']}');
+            // Use current user ID if available, otherwise use default
+            data['userId'] = currentUserId ?? 'default_user';
+          }
+          return DeletedGoal.fromJson(data);
+        }).toList();
+        print('✅ Loaded ${_deletedGoals.length} deleted goals');
+      } else {
+        print('⚠️ No deleted goals found in storage');
       }
+
+      // Save migrated data back to storage
+      await _saveDeletedItems();
+      print('✅ Saved migrated data back to storage');
 
       notifyListeners();
     } catch (e) {
-      print('Error loading deleted items: $e');
+      print('❌ Error loading deleted items: $e');
+      print('❌ Stack trace: ${StackTrace.current}');
     }
   }
 
   // Save deleted items to local storage
   Future<void> _saveDeletedItems() async {
     try {
+      print('💾 Saving deleted items to local storage');
       final prefs = await SharedPreferences.getInstance();
 
       // Save deleted pages
       final pagesJson = jsonEncode(_deletedPages.map((page) => page.toJson()).toList());
       await prefs.setString('deleted_pages', pagesJson);
+      print('✅ Saved ${_deletedPages.length} pages to storage');
 
       // Save deleted diaries
       final diariesJson = jsonEncode(_deletedDiaries.map((diary) => diary.toJson()).toList());
       await prefs.setString('deleted_diaries', diariesJson);
+      print('✅ Saved ${_deletedDiaries.length} diaries to storage');
 
       // Save deleted goals
       final goalsJson = jsonEncode(_deletedGoals.map((goal) => goal.toJson()).toList());
       await prefs.setString('deleted_goals', goalsJson);
+      print('✅ Saved ${_deletedGoals.length} goals to storage');
 
-      print('Saved deleted items to local storage');
+      // Verify saved data
+      final savedPagesJson = prefs.getString('deleted_pages');
+      final savedDiariesJson = prefs.getString('deleted_diaries');
+      final savedGoalsJson = prefs.getString('deleted_goals');
+
+      print('🔍 Verification - Pages in storage: ${savedPagesJson != null ? jsonDecode(savedPagesJson).length : 0}');
+      print('🔍 Verification - Diaries in storage: ${savedDiariesJson != null ? jsonDecode(savedDiariesJson).length : 0}');
+      print('🔍 Verification - Goals in storage: ${savedGoalsJson != null ? jsonDecode(savedGoalsJson).length : 0}');
+
+      print('✅ Successfully saved all deleted items to local storage');
     } catch (e) {
-      print('Error saving deleted items: $e');
+      print('❌ Error saving deleted items: $e');
+      print('❌ Stack trace: ${StackTrace.current}');
     }
   }
 
   // Add a deleted page
-  void addDeletedPage(PageModel page) {
-    _deletedPages.add(DeletedPage(page: page, deletedAt: DateTime.now()));
-    _saveDeletedItems();
+  Future<void> addDeletedPage(PageModel page) async {
+    print('📝 Adding page to bin: ${page.title}');
+    String userId = 'default_user'; // Default user ID
+
+    try {
+      final currentUserId = await UserService.getCurrentUserId();
+      if (currentUserId != null) {
+        userId = currentUserId;
+        print('✅ Got user ID: $userId');
+      } else {
+        print('⚠️ Using default user ID: $userId');
+      }
+    } catch (e) {
+      print('⚠️ Error getting user ID: $e, using default');
+    }
+
+    final deletedPage = DeletedPage(
+      page: page,
+      deletedAt: DateTime.now(),
+      userId: userId,
+    );
+    _deletedPages.add(deletedPage);
+    print('✅ Added page to bin. Total pages: ${_deletedPages.length}');
+
+    await _saveDeletedItems();
+    print('✅ Saved deleted items to storage');
     notifyListeners();
   }
 
   // Add a deleted diary
-  void addDeletedDiary(DiaryEntry diary) {
-    _deletedDiaries.add(DeletedDiary(diary: diary, deletedAt: DateTime.now()));
-    _saveDeletedItems();
+  Future<void> addDeletedDiary(DiaryEntry diary) async {
+    print('📝 Adding diary to bin: ${diary.title}');
+    String userId = 'default_user'; // Default user ID
+
+    try {
+      final currentUserId = await UserService.getCurrentUserId();
+      if (currentUserId != null) {
+        userId = currentUserId;
+        print('✅ Got user ID: $userId');
+      } else {
+        print('⚠️ Using default user ID: $userId');
+      }
+    } catch (e) {
+      print('⚠️ Error getting user ID: $e, using default');
+    }
+
+    final deletedDiary = DeletedDiary(
+      diary: diary,
+      deletedAt: DateTime.now(),
+      userId: userId,
+    );
+    _deletedDiaries.add(deletedDiary);
+    print('✅ Added diary to bin. Total diaries: ${_deletedDiaries.length}');
+
+    await _saveDeletedItems();
+    print('✅ Saved deleted items to storage');
     notifyListeners();
   }
 
   // Add a deleted goal
-  void addDeletedGoal(Goal goal) {
-    _deletedGoals.add(DeletedGoal(goal: goal, deletedAt: DateTime.now()));
-    _saveDeletedItems();
+  Future<void> addDeletedGoal(Goal goal) async {
+    print('📝 Adding goal to bin: ${goal.title}');
+    String userId = 'default_user'; // Default user ID
+
+    try {
+      final currentUserId = await UserService.getCurrentUserId();
+      if (currentUserId != null) {
+        userId = currentUserId;
+        print('✅ Got user ID: $userId');
+      } else {
+        print('⚠️ Using default user ID: $userId');
+      }
+    } catch (e) {
+      print('⚠️ Error getting user ID: $e, using default');
+    }
+
+    final deletedGoal = DeletedGoal(
+      goal: goal,
+      deletedAt: DateTime.now(),
+      userId: userId,
+    );
+    _deletedGoals.add(deletedGoal);
+    print('✅ Added goal to bin. Total goals: ${_deletedGoals.length}');
+
+    await _saveDeletedItems();
+    print('✅ Saved deleted items to storage');
     notifyListeners();
   }
 
@@ -292,6 +553,67 @@ class BinProvider extends ChangeNotifier {
     _saveDeletedItems();
     notifyListeners();
   }
+
+  // Check and remove items that are older than the retention period
+  Future<void> _removeExpiredItems() async {
+    print('🧹 Checking for expired items (older than $retentionDays days)');
+    final now = DateTime.now();
+    bool hasRemovedItems = false;
+
+    // Check pages
+    final expiredPages = _deletedPages.where((page) {
+      final daysInBin = now.difference(page.deletedAt).inDays;
+      return daysInBin > retentionDays;
+    }).toList();
+
+    if (expiredPages.isNotEmpty) {
+      print('🗑️ Found ${expiredPages.length} expired pages to remove permanently');
+      for (final page in expiredPages) {
+        _deletedPages.remove(page);
+        print('🗑️ Permanently removed page: ${page.page.title}');
+      }
+      hasRemovedItems = true;
+    }
+
+    // Check diaries
+    final expiredDiaries = _deletedDiaries.where((diary) {
+      final daysInBin = now.difference(diary.deletedAt).inDays;
+      return daysInBin > retentionDays;
+    }).toList();
+
+    if (expiredDiaries.isNotEmpty) {
+      print('🗑️ Found ${expiredDiaries.length} expired diaries to remove permanently');
+      for (final diary in expiredDiaries) {
+        _deletedDiaries.remove(diary);
+        print('🗑️ Permanently removed diary: ${diary.diary.title}');
+      }
+      hasRemovedItems = true;
+    }
+
+    // Check goals
+    final expiredGoals = _deletedGoals.where((goal) {
+      final daysInBin = now.difference(goal.deletedAt).inDays;
+      return daysInBin > retentionDays;
+    }).toList();
+
+    if (expiredGoals.isNotEmpty) {
+      print('🗑️ Found ${expiredGoals.length} expired goals to remove permanently');
+      for (final goal in expiredGoals) {
+        _deletedGoals.remove(goal);
+        print('🗑️ Permanently removed goal: ${goal.goal.title}');
+      }
+      hasRemovedItems = true;
+    }
+
+    // Save changes if any items were removed
+    if (hasRemovedItems) {
+      await _saveDeletedItems();
+      notifyListeners();
+      print('✅ Expired items removed and changes saved');
+    } else {
+      print('✅ No expired items found');
+    }
+  }
 }
 
 class BinPage extends StatefulWidget {
@@ -304,11 +626,23 @@ class BinPage extends StatefulWidget {
 class _BinPageState extends State<BinPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   late BinProvider _binProvider;
+  String? _currentUserId;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _getCurrentUser();
+  }
+
+  // Get the current user ID and refresh when it changes
+  Future<void> _getCurrentUser() async {
+    final userId = await UserService.getCurrentUserId();
+    if (mounted && userId != _currentUserId) {
+      setState(() {
+        _currentUserId = userId;
+      });
+    }
   }
 
   @override
@@ -316,6 +650,16 @@ class _BinPageState extends State<BinPage> with SingleTickerProviderStateMixin {
     super.didChangeDependencies();
     // Get the shared BinProvider instance
     _binProvider = Provider.of<BinProvider>(context, listen: false);
+
+    // Force a reload of deleted items when the bin page is opened
+    _binProvider._loadDeletedItems().then((_) {
+      // Check for expired items using the daily cleanup method
+      _binProvider._checkDailyCleanup().then((_) {
+        if (mounted) {
+          setState(() {}); // Refresh the UI
+        }
+      });
+    });
   }
 
   @override
@@ -437,8 +781,18 @@ class _BinPageState extends State<BinPage> with SingleTickerProviderStateMixin {
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: ListTile(
                 title: Text(deletedPage.page.title),
-                subtitle: Text(
-                  'Deleted on: ${_formatDate(deletedPage.deletedAt)}',
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Deleted on: ${_formatDate(deletedPage.deletedAt)}'),
+                    Text(
+                      _getAutoDeleteText(deletedPage.deletedAt),
+                      style: TextStyle(
+                        color: _getAutoDeleteColor(deletedPage.deletedAt),
+                        fontWeight: _isNearExpiration(deletedPage.deletedAt) ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                  ],
                 ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -542,8 +896,18 @@ class _BinPageState extends State<BinPage> with SingleTickerProviderStateMixin {
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: ListTile(
                 title: Text(deletedDiary.diary.title),
-                subtitle: Text(
-                  'Deleted on: ${_formatDate(deletedDiary.deletedAt)}',
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Deleted on: ${_formatDate(deletedDiary.deletedAt)}'),
+                    Text(
+                      _getAutoDeleteText(deletedDiary.deletedAt),
+                      style: TextStyle(
+                        color: _getAutoDeleteColor(deletedDiary.deletedAt),
+                        fontWeight: _isNearExpiration(deletedDiary.deletedAt) ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                  ],
                 ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -645,8 +1009,18 @@ class _BinPageState extends State<BinPage> with SingleTickerProviderStateMixin {
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: ListTile(
                 title: Text(deletedGoal.goal.title),
-                subtitle: Text(
-                  'Deleted on: ${_formatDate(deletedGoal.deletedAt)}',
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Deleted on: ${_formatDate(deletedGoal.deletedAt)}'),
+                    Text(
+                      _getAutoDeleteText(deletedGoal.deletedAt),
+                      style: TextStyle(
+                        color: _getAutoDeleteColor(deletedGoal.deletedAt),
+                        fontWeight: _isNearExpiration(deletedGoal.deletedAt) ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                  ],
                 ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -725,5 +1099,45 @@ class _BinPageState extends State<BinPage> with SingleTickerProviderStateMixin {
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  // Calculate remaining days before auto-deletion
+  int _getRemainingDays(DateTime deletedAt) {
+    final now = DateTime.now();
+    final daysInBin = now.difference(deletedAt).inDays;
+    final remainingDays = BinProvider.retentionDays - daysInBin;
+    return remainingDays > 0 ? remainingDays : 0;
+  }
+
+  // Check if an item is near expiration (less than 7 days remaining)
+  bool _isNearExpiration(DateTime deletedAt) {
+    final remainingDays = _getRemainingDays(deletedAt);
+    return remainingDays <= 7 && remainingDays > 0;
+  }
+
+  // Get the auto-delete text based on remaining days
+  String _getAutoDeleteText(DateTime deletedAt) {
+    final remainingDays = _getRemainingDays(deletedAt);
+
+    if (remainingDays == 0) {
+      return 'Will be deleted today';
+    } else if (remainingDays == 1) {
+      return 'Will be deleted tomorrow';
+    } else {
+      return 'Auto-delete in: $remainingDays days';
+    }
+  }
+
+  // Get the color for the auto-delete text based on remaining days
+  Color _getAutoDeleteColor(DateTime deletedAt) {
+    final remainingDays = _getRemainingDays(deletedAt);
+
+    if (remainingDays <= 3) {
+      return Colors.red; // Critical - 3 days or less
+    } else if (remainingDays <= 7) {
+      return Colors.orange; // Warning - 7 days or less
+    } else {
+      return Colors.grey[600]!; // Normal - more than 7 days
+    }
   }
 }

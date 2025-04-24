@@ -25,8 +25,9 @@ class _CalenderpageState extends State<Calenderpage> {
   final GlobalKey<WeekViewState> _weekViewKey = GlobalKey<WeekViewState>();
   final GlobalKey<DayViewState> _dayViewKey = GlobalKey<DayViewState>();
 
-  // Add a ScrollController for the scrollable month list
-  final ScrollController _scrollController = ScrollController();
+  // Add separate ScrollControllers for different scrollable widgets
+  final ScrollController _monthListScrollController = ScrollController();
+  final ScrollController _dialogScrollController = ScrollController();
 
   EventController eventController = EventController();
   CalendarViewType _calendarView = CalendarViewType.month;
@@ -43,8 +44,9 @@ class _CalenderpageState extends State<Calenderpage> {
 
   @override
   void dispose() {
-    // Dispose of the ScrollController when the widget is disposed
-    _scrollController.dispose();
+    // Dispose of all ScrollControllers when the widget is disposed
+    _monthListScrollController.dispose();
+    _dialogScrollController.dispose();
     super.dispose();
   }
 
@@ -124,32 +126,27 @@ class _CalenderpageState extends State<Calenderpage> {
     });
 
     try {
-      // SCROLLABLE CALENDAR: Load events for multiple months
+      // Load events for current month only
       final now = DateTime.now();
 
-      print('SCROLLABLE CALENDAR: Initial load - fetching events for multiple months');
+      print('CALENDAR: Initial load - fetching events for current month');
       // Create a new EventController
       eventController = EventController();
 
-      // Load events for 12 months
-      List<CalendarEventData<Object?>> allEvents = [];
+      // Load events for current month only
+      final currentMonth = DateTime(now.year, now.month, 1);
+      print('CALENDAR: Loading events for month ${currentMonth.year}-${currentMonth.month}');
 
-      for (int i = 0; i < 12; i++) {
-        final monthToLoad = DateTime(now.year, now.month + i, 1);
-        print('SCROLLABLE CALENDAR: Loading events for month ${monthToLoad.year}-${monthToLoad.month}');
+      final monthEvents = await _calendarService.getEventsForMonth(currentMonth.year, currentMonth.month);
 
-        final monthEvents = await _calendarService.getEventsForMonth(monthToLoad.year, monthToLoad.month);
-        allEvents.addAll(monthEvents);
-      }
-
-      print('SCROLLABLE CALENDAR: Loaded ${allEvents.length} events for all months');
+      print('CALENDAR: Loaded ${monthEvents.length} events for current month');
 
       // Add events to the controller
-      eventController.addAll(allEvents);
+      eventController.addAll(monthEvents);
 
       // Log all events for debugging
-      for (var event in allEvents) {
-        print('WINDOWS STYLE: Initial load event: ${event.title} on ${DateFormat('yyyy-MM-dd').format(event.date)}');
+      for (var event in monthEvents) {
+        print('CALENDAR: Initial load event: ${event.title} on ${DateFormat('yyyy-MM-dd').format(event.date)}');
       }
     } catch (e) {
       _handleError(e, 'load events');
@@ -179,37 +176,26 @@ class _CalenderpageState extends State<Calenderpage> {
           final focusedMonth = DateTime(_focusedDate.year, _focusedDate.month, 1);
           print('WINDOWS STYLE: Loading events for month: ${focusedMonth.year}-${focusedMonth.month}');
 
-          // Calculate previous and next month
-          final prevMonth = DateTime(focusedMonth.year, focusedMonth.month - 1, 1);
-          final nextMonth = DateTime(focusedMonth.year, focusedMonth.month + 1, 1);
-
-          // Load events for previous, current, and next month
-          print('WINDOWS STYLE: Loading events for previous month ${prevMonth.year}-${prevMonth.month}');
-          final prevMonthEvents = await _calendarService.getEventsForMonth(prevMonth.year, prevMonth.month);
-
+          // Load events for the current month only
           print('WINDOWS STYLE: Loading events for focused month ${focusedMonth.year}-${focusedMonth.month}');
           final currentMonthEvents = await _calendarService.getEventsForMonth(focusedMonth.year, focusedMonth.month);
 
-          print('WINDOWS STYLE: Loading events for next month ${nextMonth.year}-${nextMonth.month}');
-          final nextMonthEvents = await _calendarService.getEventsForMonth(nextMonth.year, nextMonth.month);
-
-          // Combine all events
-          final allEvents = [...prevMonthEvents, ...currentMonthEvents, ...nextMonthEvents];
-          print('WINDOWS STYLE: Loaded ${allEvents.length} events for all months');
+          print('WINDOWS STYLE: Loaded ${currentMonthEvents.length} events for current month');
 
           // Log all events for debugging
-          for (var event in allEvents) {
+          for (var event in currentMonthEvents) {
             print('WINDOWS STYLE: Event: ${event.title} on ${DateFormat('yyyy-MM-dd').format(event.date)}');
           }
 
           // Add events to the new controller
-          print('WINDOWS STYLE: Adding ${allEvents.length} events to controller');
-          eventController.addAll(allEvents);
+          print('WINDOWS STYLE: Adding ${currentMonthEvents.length} events to controller');
+          eventController.addAll(currentMonthEvents);
           break;
 
         case CalendarViewType.week:
-          // For week view, get the start and end of the week
-          final weekStart = _focusedDate.subtract(Duration(days: _focusedDate.weekday - 1));
+          // For week view, get the start and end of the week (Sunday to Saturday)
+          // Calculate the start of the week (Sunday) for the focused date
+          final weekStart = _focusedDate.subtract(Duration(days: _focusedDate.weekday % 7));
           final weekEnd = weekStart.add(const Duration(days: 6));
           print('WINDOWS STYLE: Loading events for week: ${weekStart.toString()} to ${weekEnd.toString()}');
           final events = await _calendarService.getEventsForRange(weekStart, weekEnd);
@@ -295,12 +281,13 @@ class _CalenderpageState extends State<Calenderpage> {
                           onPressed: () => _loadEventsForFocusedDate(),
                           tooltip: 'Refresh',
                         ),
-                        // Month/Year selector button instead of prev/next buttons
-                        IconButton(
-                          icon: const Icon(Icons.calendar_month),
-                          onPressed: () => _showMonthYearPicker(context),
-                          tooltip: 'Select Month/Year',
-                        ),
+                        // Month/Year selector button only for month view
+                        if (_calendarView == CalendarViewType.month)
+                          IconButton(
+                            icon: const Icon(Icons.calendar_month),
+                            onPressed: () => _showMonthYearPicker(context),
+                            tooltip: 'Select Month/Year',
+                          ),
                       ],
                     ),
                   ],
@@ -317,8 +304,13 @@ class _CalenderpageState extends State<Calenderpage> {
                   ],
                 ),
                 const SizedBox(height: 10),
+                // Only show month/year picker in month view
                 GestureDetector(
-                  onTap: () => _showMonthYearPicker(context),
+                  onTap: () {
+                    if (_calendarView == CalendarViewType.month) {
+                      _showMonthYearPicker(context);
+                    }
+                  },
                   child: _buildDateHeader(),
                 ),
               ],
@@ -339,10 +331,36 @@ class _CalenderpageState extends State<Calenderpage> {
         foregroundColor: _calendarView == view ? Colors.white : Colors.black,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
-      onPressed: () {
-        setState(() {
-          _calendarView = view;
-        });
+      onPressed: () async {
+        if (_calendarView != view) {
+          setState(() {
+            _calendarView = view;
+            _isLoading = true; // Show loading indicator
+          });
+
+          // If switching to week view, make sure we're showing the current week
+          if (view == CalendarViewType.week) {
+            // Calculate the start of the current week (Sunday)
+            final now = DateTime.now();
+            final currentWeekStart = now.subtract(Duration(days: now.weekday % 7));
+            _focusedDate = currentWeekStart;
+            _weekViewKey.currentState?.jumpToWeek(currentWeekStart);
+          }
+
+          // If switching to day view, make sure we're showing the current day
+          if (view == CalendarViewType.day) {
+            final now = DateTime.now();
+            _focusedDate = now;
+            _dayViewKey.currentState?.jumpToDate(now);
+          }
+
+          // Load appropriate events for the selected view
+          await _loadEventsForFocusedDate();
+
+          setState(() {
+            _isLoading = false;
+          });
+        }
       },
       child: Text(title),
     );
@@ -355,7 +373,10 @@ class _CalenderpageState extends State<Calenderpage> {
         headerText = DateFormat('MMMM yyyy').format(_focusedDate);
         break;
       case CalendarViewType.week:
-        final weekStart = _focusedDate.subtract(Duration(days: _focusedDate.weekday - 1));
+        // Calculate week start (Sunday) and end (Saturday)
+        // For Sunday start, we need to calculate differently
+        // Sunday is 7 in DateTime.weekday (1 is Monday, 7 is Sunday)
+        final weekStart = _focusedDate.subtract(Duration(days: _focusedDate.weekday % 7));
         final weekEnd = weekStart.add(const Duration(days: 6));
         headerText = '${DateFormat('MMM d').format(weekStart)} - ${DateFormat('MMM d, yyyy').format(weekEnd)}';
         break;
@@ -383,7 +404,10 @@ class _CalenderpageState extends State<Calenderpage> {
           builder: (context, setState) {
             return AlertDialog(
               title: const Text('Select Month and Year'),
-              content: Column(
+              contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              content: SizedBox(
+                width: 300, // Fixed narrower width
+                child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Month dropdown
@@ -436,14 +460,28 @@ class _CalenderpageState extends State<Calenderpage> {
                   ),
                 ],
               ),
+                ),
               actions: [
                 TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.grey[700],
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  ),
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(fontSize: 14),
+                  ),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF255DE1),
+                    foregroundColor: Colors.white,
+                    elevation: 3,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   ),
                   onPressed: () async {
                     Navigator.of(context).pop();
@@ -470,7 +508,13 @@ class _CalenderpageState extends State<Calenderpage> {
                       print('WINDOWS STYLE: Rebuild complete for: ${newDate.year}-${newDate.month}');
                     });
                   },
-                  child: const Text('Go'),
+                  child: const Text(
+                    'Go',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
               ],
             );
@@ -490,8 +534,9 @@ class _CalenderpageState extends State<Calenderpage> {
     );
 
     if (picked != null) {
-      // Calculate the start of the week for the picked date
-      final weekStart = picked.subtract(Duration(days: picked.weekday - 1));
+      // Calculate the start of the week (Sunday) for the picked date
+      // Sunday is 7 in DateTime.weekday (1 is Monday, 7 is Sunday)
+      final weekStart = picked.subtract(Duration(days: picked.weekday % 7));
 
       setState(() {
         _focusedDate = weekStart;
@@ -548,15 +593,22 @@ class _CalenderpageState extends State<Calenderpage> {
       _isLoading = true; // Show loading indicator
     });
 
+    final now = DateTime.now();
+
     switch (_calendarView) {
       case CalendarViewType.month:
-        _monthViewKey.currentState?.jumpToMonth(DateTime.now());
+        _focusedDate = DateTime(now.year, now.month, 1);
+        _monthViewKey.currentState?.jumpToMonth(now);
         break;
       case CalendarViewType.week:
-        _weekViewKey.currentState?.jumpToWeek(DateTime.now());
+        // Calculate the start of the current week (Sunday)
+        final currentWeekStart = now.subtract(Duration(days: now.weekday % 7));
+        _focusedDate = currentWeekStart;
+        _weekViewKey.currentState?.jumpToWeek(currentWeekStart);
         break;
       case CalendarViewType.day:
-        _dayViewKey.currentState?.jumpToDate(DateTime.now());
+        _focusedDate = now;
+        _dayViewKey.currentState?.jumpToDate(now);
         break;
     }
 
@@ -564,7 +616,9 @@ class _CalenderpageState extends State<Calenderpage> {
     await _loadEventsForFocusedDate();
 
     // Force a rebuild to ensure the calendar shows the correct events
-    setState(() {});
+    setState(() {
+      _isLoading = false;
+    });
   }
 
   void _previousPage() {
@@ -646,164 +700,167 @@ class _CalenderpageState extends State<Calenderpage> {
   Widget _buildCalendarView() {
     switch (_calendarView) {
       case CalendarViewType.month:
-        // MULTI-MONTH VIEW: Show months in a scrollable vertical list
-        return Column(
-          children: [
-            Expanded(
-              child: Scrollbar(
-                thumbVisibility: true,
-                thickness: 8,
-                radius: const Radius.circular(4),
-                controller: _scrollController, // Add the ScrollController to the Scrollbar
-                child: ListView.builder(
-                  controller: _scrollController, // Add the same ScrollController to the ListView
-                  itemCount: 12, // Show 12 months
-                  itemBuilder: (context, index) {
-                    // Calculate the month to display
-                    final monthToShow = DateTime(
-                      _focusedDate.year,
-                      _focusedDate.month + index,
-                      1,
-                    );
+        // SINGLE MONTH VIEW: Show only the current month with all dates
+        return Container(
+          height: 650, // Increased height to ensure all dates are fully visible
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Custom calendar header with day names and dates
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  border: Border(
+                    bottom: BorderSide(color: Colors.grey.shade300),
+                  ),
+                ),
+                child: Row(
+                  children: _buildDayHeaders(),
+                ),
+              ),
+              // Month view
+              Expanded(
+                child: MonthView(
+                  key: _monthViewKey,
+                  controller: eventController,
+                  // Windows-style calendar configuration
+                  showBorder: true,
+                  cellAspectRatio: 1.2, // Slightly wider cells for better visibility
+                  initialMonth: _focusedDate,
+                  // Enable page navigation
+                  onPageChange: (date, page) {
+                    setState(() {
+                      _focusedDate = date;
+                      // This will trigger a rebuild of our custom header
+                    });
+                    _loadEventsForFocusedDate();
+                  },
+                  // Make sure all dates are shown
+                  minMonth: DateTime(1900, 1, 1),
+                  maxMonth: DateTime(2100, 12, 31),
+                  // Hide the built-in weekday header since we're using our custom header
+                  weekDayBuilder: (index) => const SizedBox.shrink(),
+                  // Set first day of week to Sunday (index 0)
+                  startDay: WeekDays.sunday,
+                  // Show dates from adjacent months
+                  onEventTap: (events, date) {
+                    // Handle the event tap - always show event details dialog
+                    // since we know there are events
+                    _showEventDetailsDialog(context, events, date);
+                  },
+                  onCellTap: (events, date) {
+                    // Handle cell tap based on date and presence of events
+                    final now = DateTime.now();
+                    final today = DateTime(now.year, now.month, now.day);
+                    final selectedDate = DateTime(date.year, date.month, date.day);
+                    final isPastDate = selectedDate.isBefore(today);
 
+                    // Check if there are events for this date
+                    List<CalendarEventData<Object?>> dateEvents = [];
+                    if (events is List<CalendarEventData<Object?>>) {
+                      dateEvents = events.where((event) {
+                        return event.date.year == date.year &&
+                               event.date.month == date.month &&
+                               event.date.day == date.day;
+                      }).toList();
+                    }
+
+                    if (dateEvents.isNotEmpty) {
+                      // If there are events, show the events dialog
+                      _showEventDetailsDialog(context, dateEvents, date);
+                    } else if (!isPastDate) {
+                      // If it's current or future date with no events, show add event dialog
+                      _showAddEventDialog(context, initialDate: date);
+                    }
+                    // Do nothing for past dates with no events
+                  },
+                  // Hide the header as we're using our custom header
+                  headerBuilder: (date) => const SizedBox.shrink(),
+                  cellBuilder: (date, events, isToday, isInMonth, hideDaysNotInMonth) {
+                    // Filter events to only show events for this specific date
+                    List<CalendarEventData<Object?>> filteredEvents = [];
+                    if (events is List<CalendarEventData<Object?>>) {
+                      filteredEvents = events.where((event) {
+                        // Make sure the event date matches this cell's date exactly
+                        final matches = event.date.year == date.year &&
+                              event.date.month == date.month &&
+                              event.date.day == date.day;
+                        return matches;
+                      }).toList();
+                    }
+
+                    // Show all cells with different styling for current month vs adjacent months
                     return Container(
-                      height: 500, // Significantly increased height to ensure all dates are fully visible without scrolling
-                      margin: const EdgeInsets.only(bottom: 16),
+                      margin: const EdgeInsets.all(1),
+                      padding: const EdgeInsets.only(top: 4),
+                      decoration: BoxDecoration(
+                        color: isToday ? Colors.blue.withOpacity(0.1) :
+                              (isInMonth ? Colors.white : Colors.grey.shade50),
+                        border: Border.all(color: isToday ? Colors.blue : Colors.grey.shade200),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // Month header
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Text(
-                              DateFormat('MMMM yyyy').format(monthToShow),
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                              textAlign: TextAlign.center,
+                          // Date number
+                          Text(
+                            '${date.day}',
+                            style: TextStyle(
+                              fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                              color: isInMonth ? Colors.black : Colors.grey.shade500,
+                              fontSize: 16, // Increased font size for better visibility
                             ),
                           ),
-                          // Month view
+                          const SizedBox(height: 2),
+                          // Event indicators
                           Expanded(
-                            child: Theme(
-                              // Disable scrollbars within each month
-                              data: Theme.of(context).copyWith(
-                                scrollbarTheme: ScrollbarThemeData(
-                                  thumbVisibility: MaterialStateProperty.all(false),
-                                  trackVisibility: MaterialStateProperty.all(false),
-                                ),
-                              ),
-                              child: MonthView(
-                                key: index == 0 ? _monthViewKey : null, // Only set key for the first month
-                                controller: eventController,
-                                // Windows-style calendar configuration
-                                showBorder: true,
-                                cellAspectRatio: 0.8, // Taller cells to ensure all dates are fully visible without scrolling
-                                initialMonth: monthToShow, // Use the calculated month
-                                // Disable scrolling within each month
-                                pageViewPhysics: const NeverScrollableScrollPhysics(),
-                                // Make sure all dates are shown
-                                minMonth: DateTime(1900, 1, 1),
-                                maxMonth: DateTime(2100, 12, 31),
-                                // Show dates from adjacent months
-                                onEventTap: (events, date) {
-                                  // Handle the event tap
-                                  _showEventDetailsDialog(context, events, date);
-                                },
-                                onCellTap: (events, date) {
-                                  // Allow adding events to any date, including those from adjacent months
-                                  _showAddEventDialog(context, initialDate: date); // Pass the tapped date
-                                },
-                                // We don't need onPageChange for individual months in the list
-                                // Hide the header as we're using our custom header
-                                headerBuilder: (date) => const SizedBox.shrink(),
-                                cellBuilder: (date, events, isToday, isInMonth, hideDaysNotInMonth) {
-                                  // Filter events to only show events for this specific date
-                                  List<CalendarEventData<Object?>> filteredEvents = [];
-                                  if (events is List<CalendarEventData<Object?>>) {
-                                    filteredEvents = events.where((event) {
-                                      // Make sure the event date matches this cell's date exactly
-                                      final matches = event.date.year == date.year &&
-                                            event.date.month == date.month &&
-                                            event.date.day == date.day;
-                                      return matches;
-                                    }).toList();
-                                  }
-
-                                  // Show all cells with different styling for current month vs adjacent months
-                                  return Container(
-                                    margin: const EdgeInsets.all(1),
-                                    padding: const EdgeInsets.only(top: 4),
-                                    decoration: BoxDecoration(
-                                      color: isToday ? Colors.blue.withOpacity(0.1) :
-                                            (isInMonth ? Colors.white : Colors.grey.shade50),
-                                      border: Border.all(color: isToday ? Colors.blue : Colors.grey.shade200),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Column(
-                                      children: [
-                                        // Date number
-                                        Text(
-                                          '${date.day}',
-                                          style: TextStyle(
-                                            fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                                            color: isInMonth ? Colors.black : Colors.grey.shade500,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        // Event indicators
-                                        Expanded(
-                                          child: filteredEvents.isNotEmpty
-                                            ? ListView.builder(
-                                                // Disable scrolling and scrollbars within day cells
-                                                physics: const NeverScrollableScrollPhysics(),
-                                                padding: const EdgeInsets.symmetric(horizontal: 2),
-                                                // Disable scrollbars
-                                                primary: false,
-                                                // Limit to 2 events to ensure no scrolling is needed
-                                                itemCount: filteredEvents.length > 2 ? 2 : filteredEvents.length,
-                                                itemBuilder: (context, index) {
-                                                  final event = filteredEvents[index];
-                                                  return Container(
-                                                    margin: const EdgeInsets.only(bottom: 2),
-                                                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                                                    decoration: BoxDecoration(
-                                                      color: event.color.withOpacity(0.8),
-                                                      borderRadius: BorderRadius.circular(4),
-                                                    ),
-                                                    child: Text(
-                                                      event.title ?? '',
-                                                      style: const TextStyle(fontSize: 10, color: Colors.white),
-                                                      overflow: TextOverflow.ellipsis,
-                                                      maxLines: 1,
-                                                    ),
-                                                  );
-                                                },
-                                              )
-                                            : const SizedBox.shrink(),
-                                        ),
-                                        // More events indicator
-                                        if (filteredEvents.length > 2)
-                                          Padding(
-                                            padding: const EdgeInsets.only(bottom: 2),
-                                            child: Text(
-                                              '+${filteredEvents.length - 2} more',
-                                              style: TextStyle(fontSize: 9, color: Colors.grey.shade600),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  );
-                                },
+                            child: filteredEvents.isNotEmpty
+                              ? ListView.builder(
+                                  // Disable scrolling and scrollbars within day cells
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                                  // Disable scrollbars and ensure no controller is used
+                                  primary: false,
+                                  shrinkWrap: true,
+                                  // Limit to 2 events to ensure no scrolling is needed
+                                  itemCount: filteredEvents.length > 2 ? 2 : filteredEvents.length,
+                                  itemBuilder: (context, index) {
+                                    final event = filteredEvents[index];
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 2),
+                                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                                      decoration: BoxDecoration(
+                                        color: event.color.withOpacity(0.8),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        event.title ?? '',
+                                        style: const TextStyle(fontSize: 10, color: Colors.white),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    );
+                                  },
+                                )
+                              : const SizedBox.shrink(),
+                          ),
+                          // More events indicator
+                          if (filteredEvents.length > 2)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 2),
+                              child: Text(
+                                '+${filteredEvents.length - 2} more',
+                                style: TextStyle(fontSize: 9, color: Colors.grey.shade600),
                               ),
                             ),
-                          ),
                         ],
                       ),
                     );
                   },
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       case CalendarViewType.week:
         return WeekView(
@@ -821,6 +878,57 @@ class _CalenderpageState extends State<Calenderpage> {
               _focusedDate = date;
             });
             _loadEventsForFocusedDate();
+          },
+          // Set first day of week to Sunday
+          startDay: WeekDays.sunday,
+          // Custom weekday names (SUN, MON, TUE, etc.) with dates
+          weekDayBuilder: (date) {
+            // Convert date to day of week index (0 = Sunday, 1 = Monday, etc.)
+            final dayIndex = date.weekday % 7; // Convert to 0-based index with Sunday as 0
+            final dayNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+            // Check if this is today
+            final now = DateTime.now();
+            final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
+
+            return Container(
+              padding: const EdgeInsets.symmetric(vertical: 1),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: Colors.grey.shade300),
+                ),
+                color: isToday ? Colors.blue.withOpacity(0.1) : null,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Combine day name and date in a more compact layout
+                  RichText(
+                    textAlign: TextAlign.center,
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: dayNames[dayIndex],
+                          style: TextStyle(
+                            color: Colors.grey[700],
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                          ),
+                        ),
+                        TextSpan(
+                          text: '\n${date.day}', // Add date on new line
+                          style: TextStyle(
+                            color: isToday ? const Color(0xFF255DE1) : Colors.black,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
           },
           // Hide the header as we're using our custom header
           weekPageHeaderBuilder: (startDate, endDate) => const SizedBox.shrink(),
@@ -941,8 +1049,40 @@ class _CalenderpageState extends State<Calenderpage> {
     return months[month - 1];
   }
 
+  // Build day headers for the calendar (SUN, MON, TUE, etc.)
+  List<Widget> _buildDayHeaders() {
+    final dayNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    final List<Widget> headers = [];
+
+    // Create headers for each day of the week
+    for (int i = 0; i < 7; i++) {
+      headers.add(
+        Expanded(
+          child: Center(
+            child: Text(
+              dayNames[i],
+              style: TextStyle(
+                color: Colors.grey[700],
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return headers;
+  }
+
   void _showEventDetailsDialog(BuildContext context, dynamic eventOrEvents, DateTime date) {
     print('_showEventDetailsDialog called with date: ${date.toString()}');
+
+    // Check if the date is in the past
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final selectedDate = DateTime(date.year, date.month, date.day);
+    final isPastDate = selectedDate.isBefore(today);
 
     // Convert to list if it's a single event
     List<CalendarEventData<Object?>> events;
@@ -981,9 +1121,13 @@ class _CalenderpageState extends State<Calenderpage> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('Events on ${DateFormat('MMM d, yyyy').format(date)}'),
+          // Set a fixed width that's narrower than the default
+          contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
           content: SizedBox(
-            width: double.maxFinite,
+            width: 300, // Fixed narrower width
             child: ListView.builder(
+              // Use primary: false to ensure this ListView doesn't try to use a PrimaryScrollController
+              primary: false,
               shrinkWrap: true,
               itemCount: events.length,
               itemBuilder: (context, index) {
@@ -1092,19 +1236,40 @@ class _CalenderpageState extends State<Calenderpage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF255DE1),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.grey[700],
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               ),
-              onPressed: () {
-                Navigator.of(context).pop();
-                _showAddEventDialog(context, initialDate: date);
-              },
-              child: const Text('Add Event'),
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text(
+                'Close',
+                style: TextStyle(fontSize: 14),
+              ),
             ),
+            // Only show Add Event button for current or future dates
+            if (!isPastDate)
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF255DE1),
+                  foregroundColor: Colors.white,
+                  elevation: 3,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _showAddEventDialog(context, initialDate: date);
+                },
+                child: const Text(
+                  'Add Event',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
           ],
         );
       },
@@ -1299,7 +1464,11 @@ class _CalenderpageState extends State<Calenderpage> {
           builder: (context, setState) {
             return AlertDialog(
               title: Text(title),
-              content: SingleChildScrollView(
+              contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              content: SizedBox(
+                width: 300, // Fixed narrower width
+                child: SingleChildScrollView(
+                controller: _dialogScrollController, // Use dedicated controller for dialog
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1372,7 +1541,9 @@ class _CalenderpageState extends State<Calenderpage> {
                     const SizedBox(height: 5),
                     Container(
                       height: 50, // Fixed height for color options
-                      child: Wrap(
+                      child: SingleChildScrollView(
+                        physics: NeverScrollableScrollPhysics(), // Prevent scrolling
+                        child: Wrap(
                         spacing: 12, // Increased spacing
                         runSpacing: 12, // Added spacing between rows
                         children: colorOptions.map((color) {
@@ -1408,18 +1579,33 @@ class _CalenderpageState extends State<Calenderpage> {
                           );
                         }).toList(),
                       ),
+                      ),
                     ),
                   ],
+                ),
                 ),
               ),
               actions: [
                 TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.grey[700],
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  ),
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(fontSize: 14),
+                  ),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF255DE1),
+                    foregroundColor: Colors.white,
+                    elevation: 3,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   ),
                   onPressed: () {
                     if (titleController.text.isNotEmpty) {
@@ -1433,15 +1619,34 @@ class _CalenderpageState extends State<Calenderpage> {
                           builder: (BuildContext context) {
                             return AlertDialog(
                               title: const Text('Invalid Time Selection'),
-                              content: const Text('End time must be after start time. Please adjust your time selection.'),
+                              contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                              content: SizedBox(
+                                width: 300, // Fixed narrower width
+                                child: const Text('End time must be after start time. Please adjust your time selection.'),
+                              ),
                               backgroundColor: Colors.white,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                               actions: [
-                                TextButton(
-                                  child: const Text('OK', style: TextStyle(color: Color(0xFF255DE1))),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF255DE1),
+                                    foregroundColor: Colors.white,
+                                    elevation: 3,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                  ),
                                   onPressed: () {
                                     Navigator.of(context).pop();
                                   },
+                                  child: const Text(
+                                    'OK',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
                                 ),
                               ],
                             );
@@ -1516,15 +1721,34 @@ class _CalenderpageState extends State<Calenderpage> {
                         builder: (BuildContext dialogContext) {
                           return AlertDialog(
                             title: const Text('Missing Title'),
-                            content: const Text('Please enter a title for your event.'),
+                            contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                            content: SizedBox(
+                              width: 300, // Fixed narrower width
+                              child: const Text('Please enter a title for your event.'),
+                            ),
                             backgroundColor: Colors.white,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             actions: [
-                              TextButton(
-                                child: const Text('OK', style: TextStyle(color: Color(0xFF255DE1))),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF255DE1),
+                                  foregroundColor: Colors.white,
+                                  elevation: 3,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                ),
                                 onPressed: () {
                                   Navigator.of(dialogContext).pop();
                                 },
+                                child: const Text(
+                                  'OK',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
                               ),
                             ],
                           );
@@ -1532,7 +1756,13 @@ class _CalenderpageState extends State<Calenderpage> {
                       );
                     }
                   },
-                  child: Text(title == 'Edit Event' ? 'Update Event' : 'Add Event'),
+                  child: Text(
+                    title == 'Edit Event' ? 'Update Event' : 'Add Event',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
               ],
             );
