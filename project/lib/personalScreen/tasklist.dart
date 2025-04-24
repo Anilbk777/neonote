@@ -535,7 +535,7 @@ class _TaskScreenState extends State<TaskScreen> {
     return Stack(
       children: [
         CustomScaffold(
-          selectedPage: "tasks",
+          selectedPage: "Task List",
           onItemSelected: (page) {
             setState(() {}); // Navigate between pages if needed
           },
