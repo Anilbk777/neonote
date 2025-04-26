@@ -30,6 +30,7 @@ urlpatterns = [
     path('gt/', include('goals.urls')),
     path('diary/', include('diary.urls')),  # Added diary app URLs
     path('api/calendar/', include('events.urls')),  # Added calendar events URLs
+    path('api/notifications/', include('notifications.urls')),  # Added notifications app URLs
 
 ]
 if settings.DEBUG:

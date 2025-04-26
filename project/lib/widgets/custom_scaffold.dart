@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:project/personalScreen/quicknotes.dart';
 import 'package:project/providers/pages_provider.dart';
+import 'package:project/providers/notification_provider.dart';
 import 'package:project/models/page.dart'; // Ensure PageModel is imported
 import 'package:project/personalScreen/diary_page.dart';
 import 'package:project/dashboard.dart';
@@ -59,6 +60,10 @@ class _CustomScaffoldState extends State<CustomScaffold> {
 
   @override
   Widget build(BuildContext context) {
+    // Get the NotificationProvider from the app-level provider
+    // This will ensure it's properly initialized and shared across the app
+    final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+
     return Scaffold(
       floatingActionButton: widget.floatingActionButton,
       body: Row(
@@ -129,7 +134,6 @@ class _CustomScaffoldState extends State<CustomScaffold> {
                     const Divider(),
                     _buildSidebarItem(Icons.calendar_today, 'Calendar', Calenderpage()),
                     _buildSidebarItem(Icons.delete, 'Bin', BinPage()),
-
                   ],
                 ),
               ),
@@ -141,7 +145,6 @@ class _CustomScaffoldState extends State<CustomScaffold> {
           ),
         ],
       ),
-        // floatingActionButton: floatingActionButton,  // Use the parameter here
     );
   }
 

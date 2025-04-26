@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'goals',
     'diary',
     'events',
+    'notifications.apps.NotificationsConfig',
 ]
 
 ASGI_APPLICATION = 'your_project_name.asgi.application'
@@ -76,7 +77,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'corsheaders.middleware.CorsMiddleware',
-    
+
 ]
 
 ROOT_URLCONF = 'core.urls'

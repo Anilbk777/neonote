@@ -344,6 +344,25 @@ class GoalCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                if ((goal.hasReminder ?? false) && goal.reminderDateTime != null) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.notifications_active, size: 16, color: Colors.blue[600]),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Reminder: ${DateFormat('MMM d, yyyy - h:mm a').format(_getLocalDateTime(goal.reminderDateTime!))}',
+                          style: TextStyle(
+                            color: Colors.blue[600],
+                            fontWeight: FontWeight.w500,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 if (goal.tasks.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   LinearProgressIndicator(
@@ -478,6 +497,14 @@ class GoalCard extends StatelessWidget {
       ),
     );
   }
+
+  // Helper method to handle DateTime display
+  // We want to display the time exactly as it was entered by the user
+  DateTime _getLocalDateTime(DateTime dateTime) {
+    // We no longer need to convert the time zone
+    // Just return the original date time
+    return dateTime;
+  }
 }
 
 class CompletedGoalCard extends StatelessWidget {
@@ -528,6 +555,24 @@ class CompletedGoalCard extends StatelessWidget {
                 ),
               ],
             ),
+            if ((goal.hasReminder ?? false) && goal.reminderDateTime != null) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(Icons.notifications_active, size: 16, color: Colors.grey[400]),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      'Reminder: ${DateFormat('MMM d, yyyy - h:mm a').format(_getLocalDateTime(goal.reminderDateTime!))}',
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             if (goal.completionTime != null) ...[
               const SizedBox(height: 4),
               Row(
@@ -535,7 +580,7 @@ class CompletedGoalCard extends StatelessWidget {
                   Icon(Icons.check_circle, size: 16, color: Colors.grey[400]),
                   const SizedBox(width: 4),
                   Text(
-                    'Completed on ${DateFormat.yMMMd().add_jm().format(goal.completionTime!)}',
+                    'Completed on ${DateFormat.yMMMd().add_jm().format(_getLocalDateTime(goal.completionTime!))}',
                     style: TextStyle(
                       color: Colors.grey[400],
                       fontSize: 12,
@@ -580,5 +625,13 @@ class CompletedGoalCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  // Helper method to handle DateTime display
+  // We want to display the time exactly as it was entered by the user
+  DateTime _getLocalDateTime(DateTime dateTime) {
+    // We no longer need to convert the time zone
+    // Just return the original date time
+    return dateTime;
   }
 }

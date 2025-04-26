@@ -5,14 +5,17 @@ import 'package:project/models/goals_model.dart';
 import 'package:project/services/goal_service.dart';
 import 'package:project/personalScreen/bin.dart';
 import 'package:intl/intl.dart';
+import 'package:project/providers/notification_provider.dart';
 
 Future<void> addGoal(
   BuildContext context,
   TextEditingController goalController,
   DateTime? startDate,
   DateTime? completionDate,
-  Function setState,
-) async {
+  Function setState, {
+  bool hasReminder = false,
+  DateTime? reminderDateTime,
+}) async {
   String goalTitle = goalController.text.trim();
 
   if (goalTitle.isEmpty) {
@@ -35,12 +38,50 @@ Future<void> addGoal(
     return;
   }
 
+  // Validate reminder date if reminder is enabled
+  if (hasReminder && reminderDateTime != null) {
+    // Get current time for comparison
+    final now = DateTime.now();
+
+    // We want to use the time exactly as it was entered by the user
+    // without any time zone conversion
+
+    // Debug print to check the reminder time
+    print('GOAL HELPERS - Validating reminder time: ${reminderDateTime.toString()}');
+    print('GOAL HELPERS - Reminder time zone offset: ${reminderDateTime.timeZoneOffset}');
+    print('GOAL HELPERS - Current time: ${now.toString()}');
+    print('GOAL HELPERS - Current time zone offset: ${now.timeZoneOffset}');
+    print('GOAL HELPERS - Time difference: ${reminderDateTime.difference(now)}');
+    print('GOAL HELPERS - Time difference in minutes: ${reminderDateTime.difference(now).inMinutes}');
+    print('GOAL HELPERS - Time difference in seconds: ${reminderDateTime.difference(now).inSeconds}');
+
+    // Compare the reminder time with current time
+    if (reminderDateTime.isBefore(now)) {
+      showErrorDialog(context, 'Reminder time cannot be in the past.');
+      return;
+    }
+  }
+
   try {
     final newGoal = await GoalService.createGoal(
       title: goalTitle,
       startDate: startDate,
       completionDate: completionDate,
+      hasReminder: hasReminder,
+      reminderDateTime: reminderDateTime,
     );
+
+    // Add notification if reminder is set
+    if (hasReminder && reminderDateTime != null) {
+      try {
+        // Get the NotificationProvider from the nearest ancestor
+        final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+        await notificationProvider.addGoalReminderNotification(newGoal);
+      } catch (e) {
+        print('Warning: Could not access NotificationProvider: $e');
+        // Continue without adding notification - it will be added when the app is restarted
+      }
+    }
 
     setState(() {
       goalController.clear();
@@ -116,6 +157,17 @@ Future<void> deleteGoal(
     // Add the goal to the bin
     Provider.of<BinProvider>(context, listen: false).addDeletedGoal(goalToDelete);
 
+    // Remove any notifications for this goal
+    if (goalToDelete.hasReminder ?? false) {
+      try {
+        final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+        await notificationProvider.removeGoalReminderNotification(goalToDelete.id);
+      } catch (e) {
+        print('Warning: Could not access NotificationProvider to remove notification: $e');
+        // Continue with deletion even if notification removal fails
+      }
+    }
+
     // Delete the goal from the backend
     await GoalService.deleteGoal(goalToDelete.id);
 
@@ -146,6 +198,8 @@ Future<void> editGoal(
   TextEditingController editController = TextEditingController(text: goal.title);
   DateTime newStartDate = goal.startDate;
   DateTime newCompletionDate = goal.completionDate;
+  bool newHasReminder = goal.hasReminder;
+  DateTime? newReminderDateTime = goal.reminderDateTime;
 
   await showDialog(
     context: context,
@@ -225,6 +279,178 @@ Future<void> editGoal(
                   }
                 },
               ),
+              const SizedBox(height: 16),
+              // Reminder Toggle
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.notifications, color: Color(0xFF255DE1)),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Set Reminder',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Switch(
+                    value: newHasReminder,
+                    activeColor: const Color(0xFF255DE1),
+                    onChanged: (value) {
+                      setStateDialog(() {
+                        newHasReminder = value;
+                        if (value && newReminderDateTime == null) {
+                          // Set a default reminder time (tomorrow)
+                          newReminderDateTime = DateTime.now().add(const Duration(days: 1));
+                        }
+                      });
+                    },
+                  ),
+                ],
+              ),
+              if (newHasReminder) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Reminder Date & Time (Nepal Time)',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      // Date Picker
+                      Row(
+                        children: [
+                          const Icon(Icons.calendar_today, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              newReminderDateTime != null
+                                  ? DateFormat.yMMMd().format(newReminderDateTime!)
+                                  : 'Select Date',
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              final DateTime now = DateTime.now();
+                              DateTime? pickedDate = await showDatePicker(
+                                context: context,
+                                initialDate: newReminderDateTime ?? now,
+                                firstDate: now,
+                                lastDate: DateTime(2100),
+                              );
+                              if (pickedDate != null) {
+                                // Preserve the time part when updating the date
+                                final TimeOfDay reminderTime = newReminderDateTime != null
+                                    ? TimeOfDay(hour: newReminderDateTime!.hour, minute: newReminderDateTime!.minute)
+                                    : TimeOfDay.now();
+
+                                final newDateTime = DateTime(
+                                  pickedDate.year,
+                                  pickedDate.month,
+                                  pickedDate.day,
+                                  reminderTime.hour,
+                                  reminderTime.minute,
+                                );
+                                setStateDialog(() {
+                                  newReminderDateTime = newDateTime;
+                                });
+                              }
+                            },
+                            child: const Text('Change'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      // Time Picker
+                      Row(
+                        children: [
+                          const Icon(Icons.access_time, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              newReminderDateTime != null
+                                  ? _formatTimeIn12Hour(TimeOfDay(
+                                      hour: newReminderDateTime!.hour,
+                                      minute: newReminderDateTime!.minute,
+                                    ))
+                                  : 'Select Time',
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              TimeOfDay initialTime = newReminderDateTime != null
+                                  ? TimeOfDay(hour: newReminderDateTime!.hour, minute: newReminderDateTime!.minute)
+                                  : TimeOfDay.now();
+
+                              TimeOfDay? pickedTime = await showTimePicker(
+                                context: context,
+                                initialTime: initialTime,
+                                builder: (BuildContext context, Widget? child) {
+                                  return MediaQuery(
+                                    data: MediaQuery.of(context).copyWith(
+                                      alwaysUse24HourFormat: false,
+                                    ),
+                                    child: child!,
+                                  );
+                                },
+                              );
+                              if (pickedTime != null) {
+                                setStateDialog(() {
+                                  // Update the full date time with the new time
+                                  if (newReminderDateTime != null) {
+                                    newReminderDateTime = DateTime(
+                                      newReminderDateTime!.year,
+                                      newReminderDateTime!.month,
+                                      newReminderDateTime!.day,
+                                      pickedTime.hour,
+                                      pickedTime.minute,
+                                    );
+                                  } else {
+                                    final now = DateTime.now();
+                                    newReminderDateTime = DateTime(
+                                      now.year,
+                                      now.month,
+                                      now.day,
+                                      pickedTime.hour,
+                                      pickedTime.minute,
+                                    );
+                                  }
+                                });
+                              }
+                            },
+                            child: const Text('Change'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      // Nepal Time Zone info
+                      const Text(
+                        'Nepal Time (UTC+5:45)',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -255,7 +481,23 @@ Future<void> editGoal(
                   completionDate: newCompletionDate,
                   isCompleted: goal.isCompleted,
                   completionTime: goal.completionTime,
+                  hasReminder: newHasReminder,
+                  reminderDateTime: newHasReminder ? newReminderDateTime : null,
                 );
+
+                // Update notification if reminder is set or removed
+                try {
+                  final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+                  if (newHasReminder && newReminderDateTime != null) {
+                    await notificationProvider.addGoalReminderNotification(updatedGoal);
+                  } else if (goal.hasReminder ?? false) {
+                    // If reminder was removed, remove the notification
+                    await notificationProvider.removeGoalReminderNotification(goal.id);
+                  }
+                } catch (e) {
+                  print('Warning: Could not access NotificationProvider to update notification: $e');
+                  // Continue with goal update even if notification update fails
+                }
 
                 setState(() {
                   goals[index] = updatedGoal;
@@ -322,6 +564,17 @@ Widget buildDateSelector(
       ],
     ),
   );
+}
+
+// Format time in 12-hour format with AM/PM
+String _formatTimeIn12Hour(TimeOfDay time) {
+  // Convert 0 hour to 12 for 12-hour format
+  final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+  // Ensure minutes are always two digits
+  final minute = time.minute.toString().padLeft(2, '0');
+  // Add AM/PM suffix
+  final period = time.period == DayPeriod.am ? 'AM' : 'PM';
+  return '$hour:$minute $period';
 }
 
 void showErrorDialog(BuildContext context, String message) {
