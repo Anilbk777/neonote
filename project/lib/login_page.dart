@@ -58,9 +58,29 @@ class _LoginPageState extends State<LoginPage> {
     String? storedToken = await LocalStorage.getToken();
     print("✅ Token retrieved after login: $storedToken");
 
+    // Get user profile data
+    try {
+      final userResponse = await http.get(
+        Uri.parse('http://127.0.0.1:8000/api/accounts/profile/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${data['access']}',
+        },
+      );
 
+      if (userResponse.statusCode == 200) {
+        final userData = json.decode(userResponse.body);
+        print("✅ User profile retrieved: ${userData['email']}");
 
-
+        // Save user data to local storage
+        await LocalStorage.saveUser(userData);
+        print("✅ User data saved to local storage");
+      } else {
+        print("⚠️ Failed to get user profile: ${userResponse.statusCode}");
+      }
+    } catch (e) {
+      print("⚠️ Error fetching user profile: $e");
+    }
 
     if (storedToken != null) {
       print("✅ Token successfully retrieved after saving!");

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:project/widgets/custom_scaffold.dart';
 import 'package:project/providers/notification_provider.dart';
 import 'package:project/models/notification_model.dart';
+import 'package:project/services/local_storage.dart';
 import 'package:provider/provider.dart';
 import 'package:project/personalScreen/goal.dart';
 
@@ -13,9 +14,54 @@ class NotificationPage extends StatefulWidget {
 }
 
 class _NotificationPageState extends State<NotificationPage> {
+  bool _isLoading = false;
+  String _errorMessage = '';
+
   @override
   void initState() {
     super.initState();
+
+    // Initialize notifications when the page is opened
+    _refreshNotifications();
+  }
+
+  // Refresh notifications
+  Future<void> _refreshNotifications() async {
+    if (_isLoading) return; // Prevent multiple simultaneous refreshes
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+
+    try {
+      // Get current user info for debugging
+      final userData = await LocalStorage.getUser();
+      if (userData != null) {
+        print('🧑‍💻 Current user: ${userData['email']} (ID: ${userData['id']})');
+      } else {
+        print('⚠️ No user data found in local storage');
+        setState(() {
+          _errorMessage = 'You need to be logged in to view notifications.';
+        });
+        return;
+      }
+
+      final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+      await notificationProvider.initialize();
+      print('✅ Notifications refreshed successfully');
+    } catch (error) {
+      print('❌ Error refreshing notifications: $error');
+      setState(() {
+        _errorMessage = 'Failed to load notifications. Please try again.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -29,21 +75,67 @@ class _NotificationPageState extends State<NotificationPage> {
           builder: (context, notificationProvider, child) {
             final notifications = notificationProvider.notifications;
 
+            // Show full-screen loading indicator while fetching notifications
+            if (_isLoading) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(
+                      width: 60,
+                      height: 60,
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF255DE1),
+                        strokeWidth: 4,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Loading notifications...',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Color(0xFF255DE1),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            // Show empty state or error message when no notifications
             if (notifications.isEmpty) {
-              return const Center(
+              return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      Icons.notifications_off,
+                      _errorMessage.isNotEmpty ? Icons.error_outline : Icons.notifications_off,
                       size: 64,
-                      color: Colors.grey,
+                      color: _errorMessage.isNotEmpty ? Colors.red.shade300 : Colors.grey,
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     Text(
-                      'No notifications',
-                      style: TextStyle(fontSize: 18, color: Colors.grey),
+                      _errorMessage.isNotEmpty ? _errorMessage : 'No notifications',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: _errorMessage.isNotEmpty ? Colors.red.shade300 : Colors.grey,
+                      ),
                     ),
+                    if (_errorMessage.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        onPressed: _isLoading ? null : _refreshNotifications,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Try Again'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF255DE1),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               );
@@ -68,23 +160,32 @@ class _NotificationPageState extends State<NotificationPage> {
                       Row(
                         children: [
                           IconButton(
+                            icon: const Icon(Icons.refresh, color: Colors.white),
+                            onPressed: _isLoading ? null : _refreshNotifications,
+                            tooltip: 'Refresh notifications',
+                          ),
+                          IconButton(
                             icon: const Icon(Icons.check_circle, color: Colors.white),
-                            onPressed: () {
-                              notificationProvider.markAllAsRead();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('All notifications marked as read'),
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
-                            },
+                            onPressed: notifications.isEmpty || _isLoading
+                                ? null
+                                : () {
+                                    notificationProvider.markAllAsRead();
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('All notifications marked as read'),
+                                        duration: Duration(seconds: 2),
+                                      ),
+                                    );
+                                  },
                             tooltip: 'Mark all as read',
                           ),
                           IconButton(
                             icon: const Icon(Icons.delete, color: Colors.white),
-                            onPressed: () {
-                              _showDeleteAllConfirmationDialog(context);
-                            },
+                            onPressed: notifications.isEmpty || _isLoading
+                                ? null
+                                : () {
+                                    _showDeleteAllConfirmationDialog(context);
+                                  },
                             tooltip: 'Delete all notifications',
                           ),
                         ],

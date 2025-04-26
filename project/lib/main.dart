@@ -30,9 +30,8 @@ void main() async {
   final notificationProvider = NotificationProvider();
 
   // Initialize notification provider (don't await to avoid blocking app startup)
-  notificationProvider.initialize().catchError((error) {
-    print('Error initializing notification provider: $error');
-  });
+  // We'll initialize it when needed in the notification page instead
+  print('🔄 Notification provider created but not initialized at startup');
 
   runApp(
     MultiProvider(

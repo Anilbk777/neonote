@@ -27,7 +27,7 @@ dependencies:
   flutter_colorpicker: ^1.1.0
   calendar_view: ^1.4.0
   timezone: ^0.10.0
-  timeago: ^3.7.0
+  timeago: ^3.6.1
 
 
 dev_dependencies:

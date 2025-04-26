@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:project/models/notification_model.dart';
 import 'package:project/models/goals_model.dart';
 import 'package:project/services/notification_service.dart';
+import 'package:project/services/local_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+
+// Import the formatTo12Hour function from notification_model.dart
+import 'package:project/models/notification_model.dart' show formatTo12Hour;
 
 class NotificationProvider extends ChangeNotifier {
   List<NotificationModel> _notifications = [];
@@ -17,45 +21,78 @@ class NotificationProvider extends ChangeNotifier {
   // Initialize the provider
   Future<void> initialize() async {
     try {
-      // First load local notifications
-      await _loadNotifications();
+      print('🔄 Initializing notification provider...');
 
-      // Then try to fetch from API (if available)
+      // Check if user is logged in
+      final currentUser = await LocalStorage.getUser();
+      if (currentUser == null) {
+        print('⚠️ No user found in local storage, skipping notification initialization');
+        _notifications = [];
+        notifyListeners();
+        throw Exception('User not logged in. Please log in to view notifications.');
+      }
+
+      final userKey = currentUser['id'] ?? currentUser['email'] ?? 'unknown_user';
+      print('🔑 Initializing notifications for user: $userKey (ID: ${currentUser['id']})');
+
+      // First try to fetch from API (if available)
       try {
+        print('🔄 Fetching notifications from API...');
         final apiNotifications = await NotificationService.fetchNotifications();
+        print('✅ Successfully fetched ${apiNotifications.length} notifications from API');
 
-        // Merge with local notifications
-        for (var notification in apiNotifications) {
-          final existingIndex = _notifications.indexWhere((n) =>
-            n.type == notification.type &&
-            n.sourceId == notification.sourceId
-          );
-
-          if (existingIndex != -1) {
-            // Update existing notification
-            _notifications[existingIndex] = notification;
-          } else {
-            // Add new notification
-            _notifications.add(notification);
-          }
-        }
+        // Use only API notifications - this ensures we only show notifications for the current user
+        _notifications = apiNotifications;
 
         // Save to local storage
         await _saveNotifications();
+        print('💾 Saved notifications to local storage');
       } catch (e) {
-        print('Failed to fetch notifications from API: $e');
-        // Continue with local notifications
+        print('❌ Failed to fetch notifications from API: $e');
+
+        // Fall back to local notifications
+        print('⚠️ Falling back to local notifications');
+        await _loadNotifications();
+
+        // If we still have no notifications, rethrow the error
+        if (_notifications.isEmpty) {
+          print('❌ No notifications found in local storage either');
+          throw Exception('Failed to load notifications. Please check your connection and try again.');
+        }
       }
 
       // Sort notifications
       _sortNotifications();
 
+      // Debug log all notifications
+      if (_notifications.isNotEmpty) {
+        print('📋 Loaded ${_notifications.length} notifications for user: $userKey');
+        print('📋 Notification summary:');
+        for (var notification in _notifications) {
+          print('  - ID: ${notification.id}');
+          print('    Title: ${notification.title}');
+          print('    Type: ${notification.type}');
+          print('    Source ID: ${notification.sourceId}');
+          print('    Created: ${notification.createdAt}');
+          if (notification.dueDateTime != null) {
+            print('    Due: ${notification.dueDateTime}');
+          }
+        }
+      } else {
+        print('📋 No notifications loaded for user: $userKey');
+        print('📋 This could be normal if the user has no notifications, or it could indicate a problem.');
+        print('📋 Check the backend to verify if this user should have notifications.');
+      }
+
       // Notify listeners
       notifyListeners();
     } catch (e) {
-      print('Error initializing notification provider: $e');
+      print('❌ Error initializing notification provider: $e');
       // Initialize with empty list if everything fails
       _notifications = [];
+      notifyListeners();
+      // Rethrow to allow UI to handle the error
+      throw e;
     }
   }
 
@@ -212,22 +249,49 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  // Clear notifications when user logs out
+  Future<void> clearNotifications() async {
+    print('🧹 Clearing all notifications from memory');
+    _notifications.clear();
+    _nextId = 1;
+    notifyListeners();
+  }
+
+
+
   // Save notifications to local storage
   Future<void> _saveNotifications() async {
-    final prefs = await SharedPreferences.getInstance();
-    final notificationsJson = _notifications.map((notification) => {
-      'id': notification.id,
-      'title': notification.title,
-      'message': notification.message,
-      'createdAt': notification.createdAt.toIso8601String(),
-      'dueDateTime': notification.dueDateTime?.toIso8601String(),
-      'type': notification.type.index,
-      'sourceId': notification.sourceId,
-      'isRead': notification.isRead,
-    }).toList();
+    try {
+      final prefs = await SharedPreferences.getInstance();
 
-    await prefs.setString('notifications', jsonEncode(notificationsJson));
-    await prefs.setInt('next_notification_id', _nextId);
+      // Get the current user ID or email to use as a key
+      final currentUser = await LocalStorage.getUser();
+      if (currentUser == null) {
+        print('⚠️ No user found in local storage, skipping notification saving');
+        return;
+      }
+
+      final userKey = currentUser['id'] ?? currentUser['email'] ?? 'unknown_user';
+      print('🔑 Saving notifications for user: $userKey');
+
+      final notificationsJson = _notifications.map((notification) => {
+        'id': notification.id,
+        'title': notification.title,
+        'message': notification.message,
+        'createdAt': notification.createdAt.toIso8601String(),
+        'dueDateTime': notification.dueDateTime?.toIso8601String(),
+        'type': notification.type.index,
+        'sourceId': notification.sourceId,
+        'isRead': notification.isRead,
+      }).toList();
+
+      // Use a user-specific key for storing notifications
+      await prefs.setString('notifications_$userKey', jsonEncode(notificationsJson));
+      await prefs.setInt('next_notification_id_$userKey', _nextId);
+      print('💾 Saved ${notificationsJson.length} notifications for user: $userKey');
+    } catch (e) {
+      print('❌ Error saving notifications: $e');
+    }
   }
 
   // Sort notifications by due date and creation time
@@ -258,10 +322,25 @@ class NotificationProvider extends ChangeNotifier {
   Future<void> _loadNotifications() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final notificationsJson = prefs.getString('notifications');
+
+      // Get the current user ID or email to use as a key
+      final currentUser = await LocalStorage.getUser();
+      if (currentUser == null) {
+        print('⚠️ No user found in local storage, skipping notification loading');
+        _notifications = [];
+        return;
+      }
+
+      final userKey = currentUser['id'] ?? currentUser['email'] ?? 'unknown_user';
+      print('🔑 Loading notifications for user: $userKey');
+
+      // Use a user-specific key for storing notifications
+      final notificationsJson = prefs.getString('notifications_$userKey');
+      print('📂 Found stored notifications: ${notificationsJson != null}');
 
       if (notificationsJson != null && notificationsJson.isNotEmpty) {
         final List<dynamic> decodedJson = jsonDecode(notificationsJson);
+        print('📊 Loaded ${decodedJson.length} notifications from storage');
 
         _notifications = [];
         for (var item in decodedJson) {
@@ -307,15 +386,18 @@ class NotificationProvider extends ChangeNotifier {
 
             _notifications.add(notification);
           } catch (e) {
-            print('Error parsing notification: $e');
+            print('❌ Error parsing notification: $e');
             // Skip this notification
           }
         }
 
-        _nextId = prefs.getInt('next_notification_id') ?? 1;
+        _nextId = prefs.getInt('next_notification_id_$userKey') ?? 1;
+      } else {
+        print('📭 No notifications found in storage for user: $userKey');
+        _notifications = [];
       }
     } catch (e) {
-      print('Error loading notifications: $e');
+      print('❌ Error loading notifications: $e');
       // Initialize with empty list
       _notifications = [];
     }
