@@ -101,7 +101,10 @@ class _CalenderpageState extends State<Calenderpage> {
 
     // Show error message to user
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      // Store a reference to the ScaffoldMessenger to avoid using a potentially invalid context
+      final scaffoldMessengerState = ScaffoldMessenger.of(context);
+
+      scaffoldMessengerState.showSnackBar(
         SnackBar(
           content: Text(message),
           duration: const Duration(seconds: 5),
@@ -112,7 +115,8 @@ class _CalenderpageState extends State<Calenderpage> {
             label: 'OK',
             textColor: Colors.white,
             onPressed: () {
-              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              // Use the stored reference to hide the snackbar
+              scaffoldMessengerState.hideCurrentSnackBar();
             },
           ),
         ),
@@ -809,8 +813,10 @@ class _CalenderpageState extends State<Calenderpage> {
                           if (selectedDate.isAtSameMomentAs(today) || selectedDate.isAfter(today)) {
                             _showAddEventDialog(context, initialDate: date);
                           } else {
+                            // Store a reference to the ScaffoldMessenger to avoid using a potentially invalid context
+                            final scaffoldMessengerState = ScaffoldMessenger.of(context);
                             // Show message that past dates are not allowed
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            scaffoldMessengerState.showSnackBar(
                               const SnackBar(
                                 content: Text('You cannot create events for past dates.'),
                                 backgroundColor: Colors.red,
@@ -1435,11 +1441,12 @@ class _CalenderpageState extends State<Calenderpage> {
       print('Updating event with ID: $eventId');
       print('Updated event data: $updatedEvent');
 
-      // Store the scaffold messenger for later use
-      final scaffoldMessenger = ScaffoldMessenger.of(context);
+      // Store the scaffold messenger for later use - get it from the current context
+      // This ensures we have a valid reference even if the widget is disposed
+      final scaffoldMessengerState = ScaffoldMessenger.of(context);
 
       // Show loading indicator
-      scaffoldMessenger.showSnackBar(
+      scaffoldMessengerState.showSnackBar(
         const SnackBar(content: Text('Updating event...')),
       );
 
@@ -1469,8 +1476,8 @@ class _CalenderpageState extends State<Calenderpage> {
               eventController.remove(oldEvent);
               eventController.add(updatedEvent);
 
-              // Show success message
-              scaffoldMessenger.showSnackBar(
+              // Show success message using the stored reference
+              scaffoldMessengerState.showSnackBar(
                 SnackBar(content: Text('Event "${updatedEvent.title}" updated')),
               );
             } else {
@@ -1478,18 +1485,29 @@ class _CalenderpageState extends State<Calenderpage> {
               // Just add the updated event
               eventController.add(updatedEvent);
 
-              // Show success message
-              scaffoldMessenger.showSnackBar(
+              // Show success message using the stored reference
+              scaffoldMessengerState.showSnackBar(
                 SnackBar(content: Text('Event "${updatedEvent.title}" updated')),
               );
             }
           } catch (e) {
             print('Error updating event in controller: $e');
-            _handleError(e, 'update event in calendar');
+            // Use the stored reference to show error
+            if (mounted) {
+              _handleError(e, 'update event in calendar');
+            } else {
+              // If widget is no longer mounted, use the stored reference directly
+              scaffoldMessengerState.showSnackBar(
+                SnackBar(
+                  content: Text('Error updating event: ${e.toString()}'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
           }
         } else {
-          // Show error message
-          scaffoldMessenger.showSnackBar(
+          // Show error message using the stored reference
+          scaffoldMessengerState.showSnackBar(
             const SnackBar(
               content: Text('Failed to update event'),
               backgroundColor: Colors.red,
@@ -1498,12 +1516,28 @@ class _CalenderpageState extends State<Calenderpage> {
         }
       }).catchError((error) {
         print('Error updating event: $error');
-        _handleError(error, 'update event');
+        // Use the stored reference to show error
+        if (mounted) {
+          _handleError(error, 'update event');
+        } else {
+          // If widget is no longer mounted, use the stored reference directly
+          scaffoldMessengerState.showSnackBar(
+            SnackBar(
+              content: Text('Error updating event: ${error.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       });
     } catch (e) {
       print('Exception in event update: $e');
       print('Stack trace: ${StackTrace.current}');
-      _handleError(e, 'prepare for update');
+      if (mounted) {
+        _handleError(e, 'prepare for update');
+      } else {
+        // If widget is no longer mounted, we can't show an error message
+        print('Widget not mounted, cannot show error message');
+      }
     }
   }
 
@@ -1831,8 +1865,10 @@ class _CalenderpageState extends State<Calenderpage> {
                         print('Exception in event dialog: $e');
                         print('Stack trace: ${StackTrace.current}');
 
-                        // Show error directly with context since we're still in the dialog
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        // Use Navigator.of(context).context to get a valid context
+                        // This ensures we're using a context that's still valid
+                        final navigatorContext = Navigator.of(context).context;
+                        ScaffoldMessenger.of(navigatorContext).showSnackBar(
                           SnackBar(
                             content: Text('Error preparing event: ${e.toString().substring(0, min(50, e.toString().length))}...'),
                             backgroundColor: Colors.red,
@@ -1900,6 +1936,10 @@ class _CalenderpageState extends State<Calenderpage> {
   }
 
   void _showAddEventDialog(BuildContext context, {DateTime? initialDate}) {
+    // Store a reference to the ScaffoldMessenger before showing the dialog
+    // This ensures we can safely use it even after the dialog is closed
+    final scaffoldMessengerState = ScaffoldMessenger.of(context);
+
     final TextEditingController titleController = TextEditingController();
     final TextEditingController descriptionController = TextEditingController();
     DateTime selectedDate = initialDate ?? _focusedDate; // Use the tapped date or focused date
@@ -1918,7 +1958,7 @@ class _CalenderpageState extends State<Calenderpage> {
 
     if (isPastDate) {
       // Show error message - can't create events for past dates
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessengerState.showSnackBar(
         const SnackBar(
           content: Text('You cannot create events for past dates.'),
           backgroundColor: Colors.red,
@@ -1937,7 +1977,7 @@ class _CalenderpageState extends State<Calenderpage> {
     final currentTimeOfDay = TimeOfDay.now();
     TimeOfDay startTime = currentTimeOfDay;
     TimeOfDay endTime = TimeOfDay(hour: (currentTimeOfDay.hour + 1) % 24, minute: currentTimeOfDay.minute);
-    Color selectedColor = Colors.blue;
+    Color selectedColor = Colors.green; // Changed default to green based on the error log
 
     // Use the generic event dialog for adding events
     _showEventDialog(
@@ -1950,11 +1990,9 @@ class _CalenderpageState extends State<Calenderpage> {
       endTime: endTime,
       selectedColor: selectedColor,
       onSave: (CalendarEventData<Object?> event) async {
-        // Store the scaffold messenger for later use
-        final scaffoldMessenger = ScaffoldMessenger.of(context);
-
+        // Use the stored scaffold messenger reference instead of getting it from context
         // Show loading indicator
-        scaffoldMessenger.showSnackBar(
+        scaffoldMessengerState.showSnackBar(
           const SnackBar(content: Text('Creating event...')),
         );
 
@@ -1971,7 +2009,7 @@ class _CalenderpageState extends State<Calenderpage> {
           if (createdEvent != null) {
             print('Event created successfully: ${createdEvent.title} on ${createdEvent.date}');
             eventController.add(createdEvent); // Add the event to the controller
-            scaffoldMessenger.showSnackBar(
+            scaffoldMessengerState.showSnackBar(
               SnackBar(content: Text('Event "${event.title}" added')),
             );
 
@@ -1979,7 +2017,7 @@ class _CalenderpageState extends State<Calenderpage> {
             _loadEventsForFocusedDate();
           } else {
             print('Failed to create event - backend returned null');
-            scaffoldMessenger.showSnackBar(
+            scaffoldMessengerState.showSnackBar(
               const SnackBar(
                 content: Text('Failed to create event. Please make sure the Django server is running.'),
                 backgroundColor: Colors.red,
@@ -2002,7 +2040,7 @@ class _CalenderpageState extends State<Calenderpage> {
             eventController.add(localEvent);
             _loadEventsForFocusedDate();
 
-            scaffoldMessenger.showSnackBar(
+            scaffoldMessengerState.showSnackBar(
               SnackBar(
                 content: Text('Added event "${event.title}" locally (demo mode)'),
                 backgroundColor: Colors.orange,
@@ -2012,7 +2050,7 @@ class _CalenderpageState extends State<Calenderpage> {
           }
         } catch (e) {
           print('Exception during event creation: $e');
-          scaffoldMessenger.showSnackBar(
+          scaffoldMessengerState.showSnackBar(
             SnackBar(
               content: Text('Error creating event: ${e.toString().substring(0, min(50, e.toString().length))}...'),
               backgroundColor: Colors.red,

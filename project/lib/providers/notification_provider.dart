@@ -294,14 +294,22 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
-  // Sort notifications by due date and creation time
+  // Sort notifications by creation time (newest first) and due date
   void _sortNotifications() {
     _notifications.sort((a, b) {
       // First, sort by read status (unread first)
       if (!a.isRead && b.isRead) return -1;
       if (a.isRead && !b.isRead) return 1;
 
-      // Then sort by due date
+      // Then sort by creation time (newest first)
+      final creationComparison = b.createdAt.compareTo(a.createdAt);
+
+      // If creation times are different, use that for sorting
+      if (creationComparison != 0) {
+        return creationComparison;
+      }
+
+      // If creation times are the same, sort by due date
       if (a.dueDateTime != null && b.dueDateTime != null) {
         // If both have due dates, sort by due date (upcoming first)
         return a.dueDateTime!.compareTo(b.dueDateTime!);
@@ -313,9 +321,18 @@ class NotificationProvider extends ChangeNotifier {
         return 1;
       }
 
-      // If neither has due date, sort by creation time (newest first)
-      return b.createdAt.compareTo(a.createdAt);
+      // If everything else is equal, keep original order
+      return 0;
     });
+
+    // Debug print the sorted notifications
+    print('📋 Sorted notifications:');
+    for (var notification in _notifications) {
+      final dueStr = notification.dueDateTime != null
+          ? '${notification.dueDateTime!.toString()}'
+          : 'No due date';
+      print('  - ID: ${notification.id}, Title: ${notification.title}, Created: ${notification.createdAt}, Due: $dueStr');
+    }
   }
 
   // Load notifications from local storage

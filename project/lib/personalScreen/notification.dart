@@ -141,6 +141,71 @@ class _NotificationPageState extends State<NotificationPage> {
               );
             }
 
+            // Check if there are any visible notifications (past due or without due date)
+            bool hasVisibleNotifications = false;
+            for (var notification in notifications) {
+              if (notification.dueDateTime == null) {
+                // Notifications without due date are always visible
+                hasVisibleNotifications = true;
+                break;
+              }
+
+              // Check if notification is past due or exactly due now
+              final now = DateTime.now();
+              final dueDateTime = notification.dueDateTime!;
+
+              // Calculate the difference in minutes between due time and current time
+              int minutesDifference = 0;
+
+              // Calculate total minutes for both times for easier comparison
+              int dueTotalMinutes = (dueDateTime.hour * 60) + dueDateTime.minute;
+              int nowTotalMinutes = (now.hour * 60) + now.minute;
+
+              // If it's the same day, calculate minute difference
+              if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day == now.day) {
+                minutesDifference = nowTotalMinutes - dueTotalMinutes;
+              } else if (dueDateTime.year < now.year ||
+                        (dueDateTime.year == now.year && dueDateTime.month < now.month) ||
+                        (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day < now.day)) {
+                // If it's a past day, it's definitely past due
+                minutesDifference = 1; // Just a positive value to indicate past
+              } else {
+                // Future day
+                minutesDifference = -1; // Negative value to indicate future
+              }
+
+              // Show if past due (positive minutes difference) or exactly due now (0 minutes difference)
+              if (minutesDifference >= 0) {
+                hasVisibleNotifications = true;
+                break;
+              }
+            }
+
+            // Show empty state if no visible notifications
+            if (!hasVisibleNotifications && notifications.isNotEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.notifications_paused,
+                      size: 64,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No notifications to display yet\nYou have ${notifications.length} upcoming notification${notifications.length > 1 ? 's' : ''}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
             return Column(
               children: [
                 Container(
@@ -198,6 +263,60 @@ class _NotificationPageState extends State<NotificationPage> {
                     itemCount: notifications.length,
                     itemBuilder: (context, index) {
                       final notification = notifications[index];
+
+                      // Check if notification should be displayed
+                      final now = DateTime.now();
+                      bool shouldShow = true;
+
+                      if (notification.dueDateTime != null) {
+                        // Check if the notification is in the past or exactly due now
+                        DateTime dueDateTime = notification.dueDateTime!;
+
+                        // Calculate the difference in minutes between due time and current time
+                        int minutesDifference = 0;
+
+                        // Calculate total minutes for both times for easier comparison
+                        int dueTotalMinutes = (dueDateTime.hour * 60) + dueDateTime.minute;
+                        int nowTotalMinutes = (now.hour * 60) + now.minute;
+
+                        // Check if same day or past day
+                        bool isSameOrPastDay = (dueDateTime.year < now.year) ||
+                                             (dueDateTime.year == now.year && dueDateTime.month < now.month) ||
+                                             (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day <= now.day);
+
+                        // If it's the same day, calculate minute difference
+                        if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day == now.day) {
+                          minutesDifference = nowTotalMinutes - dueTotalMinutes;
+                        } else if (dueDateTime.year < now.year ||
+                                  (dueDateTime.year == now.year && dueDateTime.month < now.month) ||
+                                  (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day < now.day)) {
+                          // If it's a past day, it's definitely past due
+                          minutesDifference = 1; // Just a positive value to indicate past
+                        } else {
+                          // Future day
+                          minutesDifference = -1; // Negative value to indicate future
+                        }
+
+                        // Debug print
+                        print('NOTIFICATION FILTER - ID: ${notification.id}, Title: ${notification.title}');
+                        print('NOTIFICATION FILTER - Due: ${dueDateTime.toString()}, Now: ${now.toString()}');
+                        print('NOTIFICATION FILTER - Minutes difference: $minutesDifference');
+
+                        // Show if past due (positive minutes difference) or exactly due now (0 minutes difference)
+                        // This ensures notifications appear exactly at their due time
+                        shouldShow = minutesDifference >= 0;
+
+                        print('NOTIFICATION FILTER - Should show: $shouldShow');
+                      }
+
+                      // If notification should not be shown, return an empty container
+                      if (!shouldShow) {
+                        print('NOTIFICATION LIST - Hiding notification ID: ${notification.id}, Title: ${notification.title} (not past due yet)');
+                        return const SizedBox.shrink();
+                      }
+
+                      print('NOTIFICATION LIST - Showing notification ID: ${notification.id}, Title: ${notification.title} (past due or no due date)');
+
                       return _buildNotificationCard(context, notification);
                     },
                   ),
@@ -213,6 +332,7 @@ class _NotificationPageState extends State<NotificationPage> {
   Widget _buildNotificationCard(BuildContext context, NotificationModel notification) {
     final now = DateTime.now();
     bool isPast = false;
+    bool isDueNow = false;
 
     if (notification.dueDateTime != null) {
       // Get the due date time
@@ -225,14 +345,32 @@ class _NotificationPageState extends State<NotificationPage> {
       print('NOTIFICATION CARD - Current time (24-hour): ${now.hour}:${now.minute}');
       print('NOTIFICATION CARD - Current time (12-hour): ${formatTo12Hour(now.hour, now.minute)}');
 
-      // Simple check if the due time is in the past
-      isPast = (dueDateTime.year < now.year) ||
-               (dueDateTime.year == now.year && dueDateTime.month < now.month) ||
-               (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day < now.day) ||
-               (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day == now.day &&
-                dueDateTime.hour < now.hour) ||
-               (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day == now.day &&
-                dueDateTime.hour == now.hour && dueDateTime.minute < now.minute);
+      // Calculate the difference in minutes between due time and current time
+      int minutesDifference = 0;
+
+      // Calculate total minutes for both times for easier comparison
+      int dueTotalMinutes = (dueDateTime.hour * 60) + dueDateTime.minute;
+      int nowTotalMinutes = (now.hour * 60) + now.minute;
+
+      // If it's the same day, calculate minute difference
+      if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day == now.day) {
+        minutesDifference = nowTotalMinutes - dueTotalMinutes;
+      } else if (dueDateTime.year < now.year ||
+                (dueDateTime.year == now.year && dueDateTime.month < now.month) ||
+                (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day < now.day)) {
+        // If it's a past day, it's definitely past due
+        minutesDifference = 1; // Just a positive value to indicate past
+      } else {
+        // Future day
+        minutesDifference = -1; // Negative value to indicate future
+      }
+
+      // Check if past due or exactly due now
+      isPast = minutesDifference > 0;
+      isDueNow = minutesDifference == 0;
+
+      print('NOTIFICATION CARD - Minutes difference: $minutesDifference');
+      print('NOTIFICATION CARD - Is past: $isPast, Is due now: $isDueNow');
 
       // Get the remaining time from the notification model
       final remainingTime = notification.remainingTime;
@@ -325,7 +463,27 @@ class _NotificationPageState extends State<NotificationPage> {
                               ],
                             ),
                             const SizedBox(height: 4),
-                            if (!isPast)
+                            if (isDueNow)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.green[50],
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.green.withOpacity(0.5),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: const Text(
+                                  "Due now",
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                              ),
+                            if (!isPast && !isDueNow)
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
@@ -392,14 +550,43 @@ class _NotificationPageState extends State<NotificationPage> {
     IconData iconData;
     Color iconColor;
 
+    // Check if notification is due now
+    bool isDueNow = false;
+    if (notification.dueDateTime != null) {
+      final now = DateTime.now();
+      final dueDateTime = notification.dueDateTime!;
+
+      // Calculate total minutes for both times for easier comparison
+      int dueTotalMinutes = (dueDateTime.hour * 60) + dueDateTime.minute;
+      int nowTotalMinutes = (now.hour * 60) + now.minute;
+
+      // Check if same day and same time (hour and minute)
+      isDueNow = dueDateTime.year == now.year &&
+                dueDateTime.month == now.month &&
+                dueDateTime.day == now.day &&
+                dueTotalMinutes == nowTotalMinutes;
+    }
+
     switch (notification.type) {
       case NotificationType.goalReminder:
         iconData = Icons.flag;
-        iconColor = isPast ? Colors.red : const Color(0xFF255DE1);
+        if (isPast) {
+          iconColor = Colors.red;
+        } else if (isDueNow) {
+          iconColor = Colors.green;
+        } else {
+          iconColor = const Color(0xFF255DE1);
+        }
         break;
       case NotificationType.taskDue:
         iconData = Icons.task_alt;
-        iconColor = isPast ? Colors.red : Colors.orange;
+        if (isPast) {
+          iconColor = Colors.red;
+        } else if (isDueNow) {
+          iconColor = Colors.green;
+        } else {
+          iconColor = Colors.orange;
+        }
         break;
       case NotificationType.systemNotification:
         iconData = Icons.info;
