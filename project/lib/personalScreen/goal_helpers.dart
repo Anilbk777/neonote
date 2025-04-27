@@ -198,8 +198,10 @@ Future<void> editGoal(
   TextEditingController editController = TextEditingController(text: goal.title);
   DateTime newStartDate = goal.startDate;
   DateTime newCompletionDate = goal.completionDate;
-  bool newHasReminder = goal.hasReminder;
-  DateTime? newReminderDateTime = goal.reminderDateTime;
+
+  // If the goal is completed, ensure reminders are turned off
+  bool newHasReminder = goal.isCompleted ? false : goal.hasReminder;
+  DateTime? newReminderDateTime = goal.isCompleted ? null : goal.reminderDateTime;
 
   await showDialog(
     context: context,
@@ -209,9 +211,7 @@ Future<void> editGoal(
           // Add a loading state for the dialog
           bool isDialogSaving = false;
 
-          return Stack(
-            children: [
-              AlertDialog(
+          return AlertDialog(
                 title: const Text('Edit Goal'),
                 content: SingleChildScrollView(
               child: Column(
@@ -287,39 +287,43 @@ Future<void> editGoal(
                 },
               ),
               const SizedBox(height: 16),
-              // Reminder Toggle
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.notifications, color: Color(0xFF255DE1)),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Set Reminder',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+              // Only show reminder toggle for non-completed goals
+              if (!goal.isCompleted)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.notifications,
+                          color: Color(0xFF255DE1)
                         ),
-                      ),
-                    ],
-                  ),
-                  Switch(
-                    value: newHasReminder,
-                    activeColor: const Color(0xFF255DE1),
-                    onChanged: (value) {
-                      setStateDialog(() {
-                        newHasReminder = value;
-                        if (value && newReminderDateTime == null) {
-                          // Set a default reminder time (tomorrow)
-                          newReminderDateTime = DateTime.now().add(const Duration(days: 1));
-                        }
-                      });
-                    },
-                  ),
-                ],
-              ),
-              if (newHasReminder) ...[
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Set Reminder',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Switch(
+                      value: newHasReminder,
+                      activeColor: const Color(0xFF255DE1),
+                      onChanged: (value) {
+                        setStateDialog(() {
+                          newHasReminder = value;
+                          if (value && newReminderDateTime == null) {
+                            // Set a default reminder time (tomorrow)
+                            newReminderDateTime = DateTime.now().add(const Duration(days: 1));
+                          }
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              if (!goal.isCompleted && newHasReminder) ...[
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -490,6 +494,10 @@ Future<void> editGoal(
                       });
 
                       try {
+                        // Ensure that completed goals don't have reminders
+                        final bool hasReminder = goal.isCompleted ? false : newHasReminder;
+                        final DateTime? reminderDateTime = goal.isCompleted ? null : (newHasReminder ? newReminderDateTime : null);
+
                         final updatedGoal = await GoalService.updateGoal(
                           goalId: goal.id,
                           title: editedTitle,
@@ -497,17 +505,19 @@ Future<void> editGoal(
                           completionDate: newCompletionDate,
                           isCompleted: goal.isCompleted,
                           completionTime: goal.completionTime,
-                          hasReminder: newHasReminder,
-                          reminderDateTime: newHasReminder ? newReminderDateTime : null,
+                          hasReminder: hasReminder,
+                          reminderDateTime: reminderDateTime,
                         );
 
                         // Update notification if reminder is set or removed
                         try {
                           final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
-                          if (newHasReminder && newReminderDateTime != null) {
+
+                          // Only add notification if the goal is not completed and has a reminder
+                          if (!updatedGoal.isCompleted && hasReminder && reminderDateTime != null) {
                             await notificationProvider.addGoalReminderNotification(updatedGoal);
-                          } else if (goal.hasReminder ?? false) {
-                            // If reminder was removed, remove the notification
+                          } else {
+                            // If goal is completed or reminder was removed, remove any existing notification
                             await notificationProvider.removeGoalReminderNotification(goal.id);
                           }
                         } catch (e) {
@@ -542,34 +552,7 @@ Future<void> editGoal(
                 ),
                 child: const Text('Save'),
                 ),
-              ],
-                ),
-              // Loading overlay that appears when saving
-              if (isDialogSaving)
-                Positioned.fill(
-                  child: Container(
-                    color: Colors.black54,
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          CircularProgressIndicator(
-                            color: Colors.white,
-                          ),
-                          SizedBox(height: 16),
-                          Text(
-                            'Saving goal...',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+
             ],
           );
         },

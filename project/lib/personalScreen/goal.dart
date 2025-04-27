@@ -297,6 +297,9 @@ class _GoalPageState extends State<GoalPage> {
       goal.isCompleted = !goal.isCompleted;
       if (goal.isCompleted) {
         goal.completionTime = DateTime.now();
+        // If goal is being completed, remove any reminder
+        goal.hasReminder = false;
+        goal.reminderDateTime = null;
       } else {
         goal.completionTime = null;
       }
@@ -312,7 +315,20 @@ class _GoalPageState extends State<GoalPage> {
         completionDate: goal.completionDate,
         isCompleted: goal.isCompleted,
         completionTime: goal.completionTime,
+        hasReminder: goal.hasReminder, // Pass the updated reminder status
+        reminderDateTime: goal.reminderDateTime, // Pass the updated reminder time
       );
+
+      // If the goal was completed, remove any associated notification
+      if (goal.isCompleted) {
+        try {
+          final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+          await notificationProvider.removeGoalReminderNotification(goal.id);
+        } catch (e) {
+          print('Warning: Could not access NotificationProvider to remove notification: $e');
+          // Continue even if notification removal fails
+        }
+      }
 
       // Hide saving indicator after successful update
       setState(() {
@@ -324,6 +340,8 @@ class _GoalPageState extends State<GoalPage> {
         goal.isCompleted = !goal.isCompleted;
         if (goal.isCompleted) {
           goal.completionTime = DateTime.now();
+          goal.hasReminder = false;
+          goal.reminderDateTime = null;
         } else {
           goal.completionTime = null;
         }
@@ -347,10 +365,7 @@ class _GoalPageState extends State<GoalPage> {
   }
 
   Future<void> _handleEditGoal(int index) async {
-    setState(() {
-      _isSaving = true; // Show saving indicator
-    });
-
+    // Don't show loading screen when opening the edit dialog
     try {
       await editGoal(
         context,
@@ -358,6 +373,8 @@ class _GoalPageState extends State<GoalPage> {
         _goals,
         setState,
       );
+
+      // Only show loading when actually saving the goal (handled inside editGoal)
       await _loadGoals(); // This will set _isLoading to false when complete
     } catch (e) {
       // Show error message if goal editing fails
@@ -367,11 +384,6 @@ class _GoalPageState extends State<GoalPage> {
           backgroundColor: Colors.red,
         ),
       );
-
-      // Hide saving indicator
-      setState(() {
-        _isSaving = false;
-      });
     }
   }
 
@@ -462,6 +474,8 @@ class _GoalPageState extends State<GoalPage> {
 
   // New method to show the Add Goal dialog using the same inputs as before.
   Future<void> _showAddGoalDialog() async {
+    // Don't show loading screen when opening the add goal dialog
+
     // Use a temporary state for the dialog's date selections to keep them in sync with the page
     DateTime? dialogStartDate = _startDate;
     DateTime? dialogCompletionDate = _completionDate;
@@ -497,9 +511,7 @@ class _GoalPageState extends State<GoalPage> {
             // We're now using the formatTimeOfDayTo12Hour function from notification_model.dart
 
             // Use a simple Dialog with fixed width
-            return Stack(
-              children: [
-                AlertDialog(
+            return AlertDialog(
                   title: const Text('Add Goal'),
                   content: Container(
                     width: 400, // Fixed width
@@ -854,35 +866,8 @@ class _GoalPageState extends State<GoalPage> {
                       ),
                     ),
                   ],
-                ),
-                // Loading overlay that appears when saving
-                if (isDialogSaving)
-                  Positioned.fill(
-                    child: Container(
-                      color: Colors.black54,
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            CircularProgressIndicator(
-                              color: Colors.white,
-                            ),
-                            SizedBox(height: 16),
-                            Text(
-                              'Saving goal...',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            );
+                );
+
           },
         );
       },

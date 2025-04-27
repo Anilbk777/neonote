@@ -98,162 +98,27 @@ class _NotificationPageState extends State<NotificationPage> {
       onItemSelected: (page) {},
       body: Container(
         color: Colors.white,
-        child: Consumer<NotificationProvider>(
-          builder: (context, notificationProvider, child) {
-            final notifications = notificationProvider.notifications;
-
-            // Show full-screen loading indicator while fetching notifications
-            if (_isLoading) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(
-                      width: 60,
-                      height: 60,
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF255DE1),
-                        strokeWidth: 4,
-                      ),
+        child: Column(
+          children: [
+            // Always show the app bar
+            Container(
+              padding: const EdgeInsets.all(16),
+              color: const Color(0xFF255DE1),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Notifications',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Loading notifications...',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Color(0xFF255DE1),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            // Show empty state or error message when no notifications
-            if (notifications.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      _errorMessage.isNotEmpty ? Icons.error_outline : Icons.notifications_off,
-                      size: 64,
-                      color: _errorMessage.isNotEmpty ? Colors.red.shade300 : Colors.grey,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      _errorMessage.isNotEmpty ? _errorMessage : 'No notifications',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: _errorMessage.isNotEmpty ? Colors.red.shade300 : Colors.grey,
-                      ),
-                    ),
-                    if (_errorMessage.isNotEmpty) ...[
-                      const SizedBox(height: 24),
-                      ElevatedButton.icon(
-                        onPressed: _isLoading ? null : _refreshNotifications,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Try Again'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF255DE1),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              );
-            }
-
-            // Check if there are any visible notifications (past due or without due date)
-            bool hasVisibleNotifications = false;
-            for (var notification in notifications) {
-              if (notification.dueDateTime == null) {
-                // Notifications without due date are always visible
-                hasVisibleNotifications = true;
-                break;
-              }
-
-              // Check if notification is due now or in the past
-              final now = DateTime.now();
-              final dueDateTime = notification.dueDateTime!;
-
-              // Compare year, month, day, hour, and minute directly
-              bool isPastOrDueNow = false;
-
-              // If it's a past year
-              if (dueDateTime.year < now.year) {
-                isPastOrDueNow = true;
-              }
-              // If it's the same year but past month
-              else if (dueDateTime.year == now.year && dueDateTime.month < now.month) {
-                isPastOrDueNow = true;
-              }
-              // If it's the same year and month but past day
-              else if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day < now.day) {
-                isPastOrDueNow = true;
-              }
-              // If it's the same day, compare hour and minute
-              else if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day == now.day) {
-                // Calculate total minutes for easier comparison
-                int dueMinutes = (dueDateTime.hour * 60) + dueDateTime.minute;
-                int nowMinutes = (now.hour * 60) + now.minute;
-
-                // Show if due time is earlier than or equal to current time
-                isPastOrDueNow = dueMinutes <= nowMinutes;
-              }
-
-              if (isPastOrDueNow) {
-                hasVisibleNotifications = true;
-                break;
-              }
-            }
-
-            // Show empty state if no visible notifications
-            if (!hasVisibleNotifications && notifications.isNotEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.notifications_paused,
-                      size: 64,
-                      color: Colors.grey,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No notifications to display yet\nYou have ${notifications.length} upcoming notification${notifications.length > 1 ? 's' : ''}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            return Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  color: const Color(0xFF255DE1),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Notifications',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      Row(
+                  ),
+                  Consumer<NotificationProvider>(
+                    builder: (context, notificationProvider, child) {
+                      final notifications = notificationProvider.notifications;
+                      return Row(
                         children: [
                           IconButton(
                             icon: const Icon(Icons.refresh, color: Colors.white),
@@ -285,12 +150,155 @@ class _NotificationPageState extends State<NotificationPage> {
                             tooltip: 'Delete all notifications',
                           ),
                         ],
-                      ),
-                    ],
+                      );
+                    },
                   ),
-                ),
-                Expanded(
-                  child: ListView.builder(
+                ],
+              ),
+            ),
+            // Content area
+            Expanded(
+              child: Consumer<NotificationProvider>(
+                builder: (context, notificationProvider, child) {
+                  final notifications = notificationProvider.notifications;
+
+                  // Show full-screen loading indicator while fetching notifications
+                  if (_isLoading) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const SizedBox(
+                            width: 60,
+                            height: 60,
+                            child: CircularProgressIndicator(
+                              color: Color(0xFF255DE1),
+                              strokeWidth: 4,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          const Text(
+                            'Loading notifications...',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Color(0xFF255DE1),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  // Show empty state or error message when no notifications
+                  if (notifications.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            _errorMessage.isNotEmpty ? Icons.error_outline : Icons.notifications_off,
+                            size: 64,
+                            color: _errorMessage.isNotEmpty ? Colors.red.shade300 : Colors.grey,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            _errorMessage.isNotEmpty ? _errorMessage : 'No notifications',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: _errorMessage.isNotEmpty ? Colors.red.shade300 : Colors.grey,
+                            ),
+                          ),
+                          if (_errorMessage.isNotEmpty) ...[
+                            const SizedBox(height: 24),
+                            ElevatedButton.icon(
+                              onPressed: _isLoading ? null : _refreshNotifications,
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Try Again'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF255DE1),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  }
+
+                  // Check if there are any visible notifications (past due or without due date)
+                  bool hasVisibleNotifications = false;
+                  for (var notification in notifications) {
+                    if (notification.dueDateTime == null) {
+                      // Notifications without due date are always visible
+                      hasVisibleNotifications = true;
+                      break;
+                    }
+
+                    // Check if notification is due now or in the past
+                    final now = DateTime.now();
+                    final dueDateTime = notification.dueDateTime!;
+
+                    // Compare year, month, day, hour, and minute directly
+                    bool isPastOrDueNow = false;
+
+                    // If it's a past year
+                    if (dueDateTime.year < now.year) {
+                      isPastOrDueNow = true;
+                    }
+                    // If it's the same year but past month
+                    else if (dueDateTime.year == now.year && dueDateTime.month < now.month) {
+                      isPastOrDueNow = true;
+                    }
+                    // If it's the same year and month but past day
+                    else if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day < now.day) {
+                      isPastOrDueNow = true;
+                    }
+                    // If it's the same day, compare hour and minute
+                    else if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day == now.day) {
+                      // Calculate total minutes for easier comparison
+                      int dueMinutes = (dueDateTime.hour * 60) + dueDateTime.minute;
+                      int nowMinutes = (now.hour * 60) + now.minute;
+
+                      // Show if due time is earlier than or equal to current time
+                      isPastOrDueNow = dueMinutes <= nowMinutes;
+                    }
+
+                    if (isPastOrDueNow) {
+                      hasVisibleNotifications = true;
+                      break;
+                    }
+                  }
+
+                  // Show empty state if no visible notifications
+                  if (!hasVisibleNotifications && notifications.isNotEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.notifications_paused,
+                            size: 64,
+                            color: Colors.grey,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No notifications to display yet\nYou have ${notifications.length} upcoming notification${notifications.length > 1 ? 's' : ''}',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  // Show notifications list
+                  return ListView.builder(
                     itemCount: notifications.length,
                     itemBuilder: (context, index) {
                       final notification = notifications[index];
@@ -346,11 +354,11 @@ class _NotificationPageState extends State<NotificationPage> {
 
                       return _buildNotificationCard(context, notification);
                     },
-                  ),
-                ),
-              ],
-            );
-          },
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
