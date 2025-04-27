@@ -47,13 +47,13 @@ Future<void> addGoal(
     // without any time zone conversion
 
     // Debug print to check the reminder time
-    print('GOAL HELPERS - Validating reminder time: ${reminderDateTime.toString()}');
-    print('GOAL HELPERS - Reminder time zone offset: ${reminderDateTime.timeZoneOffset}');
-    print('GOAL HELPERS - Current time: ${now.toString()}');
-    print('GOAL HELPERS - Current time zone offset: ${now.timeZoneOffset}');
-    print('GOAL HELPERS - Time difference: ${reminderDateTime.difference(now)}');
-    print('GOAL HELPERS - Time difference in minutes: ${reminderDateTime.difference(now).inMinutes}');
-    print('GOAL HELPERS - Time difference in seconds: ${reminderDateTime.difference(now).inSeconds}');
+    // print('GOAL HELPERS - Validating reminder time: ${reminderDateTime.toString()}');
+    // print('GOAL HELPERS - Reminder time zone offset: ${reminderDateTime.timeZoneOffset}');
+    // print('GOAL HELPERS - Current time: ${now.toString()}');
+    // print('GOAL HELPERS - Current time zone offset: ${now.timeZoneOffset}');
+    // print('GOAL HELPERS - Time difference: ${reminderDateTime.difference(now)}');
+    // print('GOAL HELPERS - Time difference in minutes: ${reminderDateTime.difference(now).inMinutes}');
+    // print('GOAL HELPERS - Time difference in seconds: ${reminderDateTime.difference(now).inSeconds}');
 
     // Compare the reminder time with current time
     if (reminderDateTime.isBefore(now)) {
@@ -78,7 +78,7 @@ Future<void> addGoal(
         final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
         await notificationProvider.addGoalReminderNotification(newGoal);
       } catch (e) {
-        print('Warning: Could not access NotificationProvider: $e');
+        // print('Warning: Could not access NotificationProvider: $e');
         // Continue without adding notification - it will be added when the app is restarted
       }
     }
@@ -163,7 +163,7 @@ Future<void> deleteGoal(
         final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
         await notificationProvider.removeGoalReminderNotification(goalToDelete.id);
       } catch (e) {
-        print('Warning: Could not access NotificationProvider to remove notification: $e');
+        // print('Warning: Could not access NotificationProvider to remove notification: $e');
         // Continue with deletion even if notification removal fails
       }
     }
@@ -203,23 +203,30 @@ Future<void> editGoal(
 
   await showDialog(
     context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setStateDialog) => AlertDialog(
-        title: const Text('Edit Goal'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (context, setStateDialog) {
+          // Add a loading state for the dialog
+          bool isDialogSaving = false;
+
+          return Stack(
             children: [
-              TextField(
-                controller: editController,
-                decoration: InputDecoration(
-                  labelText: 'Goal Title',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+              AlertDialog(
+                title: const Text('Edit Goal'),
+                content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: editController,
+                    decoration: InputDecoration(
+                      labelText: 'Goal Title',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 16),
+                  const SizedBox(height: 16),
               buildDateSelector(
                 context,
                 label: 'Start Date',
@@ -454,65 +461,120 @@ Future<void> editGoal(
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              String editedTitle = editController.text.trim();
-              if (editedTitle.isEmpty) {
-                showErrorDialog(context, 'Title cannot be empty.');
-                return;
-              }
+            actions: [
+              TextButton(
+                onPressed: isDialogSaving
+                  ? null // Disable button when saving
+                  : () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: isDialogSaving
+                  ? null // Disable button when saving
+                  : () async {
+                      String editedTitle = editController.text.trim();
+                      if (editedTitle.isEmpty) {
+                        showErrorDialog(context, 'Title cannot be empty.');
+                        return;
+                      }
 
-              if (newCompletionDate.isBefore(newStartDate)) {
-                showErrorDialog(
-                    context, 'Completion date cannot be earlier than start date.');
-                return;
-              }
+                      if (newCompletionDate.isBefore(newStartDate)) {
+                        showErrorDialog(
+                            context, 'Completion date cannot be earlier than start date.');
+                        return;
+                      }
 
-              try {
-                final updatedGoal = await GoalService.updateGoal(
-                  goalId: goal.id,
-                  title: editedTitle,
-                  startDate: newStartDate,
-                  completionDate: newCompletionDate,
-                  isCompleted: goal.isCompleted,
-                  completionTime: goal.completionTime,
-                  hasReminder: newHasReminder,
-                  reminderDateTime: newHasReminder ? newReminderDateTime : null,
-                );
+                      // Show loading indicator
+                      setStateDialog(() {
+                        isDialogSaving = true;
+                      });
 
-                // Update notification if reminder is set or removed
-                try {
-                  final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
-                  if (newHasReminder && newReminderDateTime != null) {
-                    await notificationProvider.addGoalReminderNotification(updatedGoal);
-                  } else if (goal.hasReminder ?? false) {
-                    // If reminder was removed, remove the notification
-                    await notificationProvider.removeGoalReminderNotification(goal.id);
-                  }
-                } catch (e) {
-                  print('Warning: Could not access NotificationProvider to update notification: $e');
-                  // Continue with goal update even if notification update fails
-                }
+                      try {
+                        final updatedGoal = await GoalService.updateGoal(
+                          goalId: goal.id,
+                          title: editedTitle,
+                          startDate: newStartDate,
+                          completionDate: newCompletionDate,
+                          isCompleted: goal.isCompleted,
+                          completionTime: goal.completionTime,
+                          hasReminder: newHasReminder,
+                          reminderDateTime: newHasReminder ? newReminderDateTime : null,
+                        );
 
-                setState(() {
-                  goals[index] = updatedGoal;
-                  goals.sort((a, b) => b.createdAt.compareTo(a.createdAt)); // Sort by createdAt descending
-                });
-                Navigator.of(context).pop();
-              } catch (e) {
-                showErrorDialog(context, 'Failed to update goal: $e');
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    ),
+                        // Update notification if reminder is set or removed
+                        try {
+                          final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+                          if (newHasReminder && newReminderDateTime != null) {
+                            await notificationProvider.addGoalReminderNotification(updatedGoal);
+                          } else if (goal.hasReminder ?? false) {
+                            // If reminder was removed, remove the notification
+                            await notificationProvider.removeGoalReminderNotification(goal.id);
+                          }
+                        } catch (e) {
+                          print('Warning: Could not access NotificationProvider to update notification: $e');
+                          // Continue with goal update even if notification update fails
+                        }
+
+                        setState(() {
+                          goals[index] = updatedGoal;
+                          goals.sort((a, b) => b.createdAt.compareTo(a.createdAt)); // Sort by createdAt descending
+                        });
+
+                        // Close dialog only if still mounted
+                        if (context.mounted) {
+                          Navigator.of(context).pop();
+                        }
+                      } catch (e) {
+                        // Hide loading indicator on error
+                        setStateDialog(() {
+                          isDialogSaving = false;
+                        });
+                        showErrorDialog(context, 'Failed to update goal: $e');
+                      }
+                    },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF255DE1),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text('Save'),
+                ),
+              ],
+                ),
+              // Loading overlay that appears when saving
+              if (isDialogSaving)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.black54,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          CircularProgressIndicator(
+                            color: Colors.white,
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            'Saving goal...',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      );
+    },
   );
 }
 

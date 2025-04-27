@@ -49,18 +49,18 @@ class NotificationModel {
 
     // Get current time
     final now = DateTime.now();
-    print('TIMEAGO - Current time (now): ${now.toString()}');
-    print('TIMEAGO - Current time (12-hour): ${formatTo12Hour(now.hour, now.minute)}');
+    // print('TIMEAGO - Current time (now): ${now.toString()}');
+    // print('TIMEAGO - Current time (12-hour): ${formatTo12Hour(now.hour, now.minute)}');
 
     // Get the due date time
     DateTime due = dueDateTime!;
-    print('TIMEAGO - Due date time (original): ${due.toString()}');
-    print('TIMEAGO - Due time (24-hour): ${due.hour}:${due.minute}');
-    print('TIMEAGO - Due time (12-hour): ${formatTo12Hour(due.hour, due.minute)}');
+    // print('TIMEAGO - Due date time (original): ${due.toString()}');
+    // print('TIMEAGO - Due time (24-hour): ${due.hour}:${due.minute}');
+    // print('TIMEAGO - Due time (12-hour): ${formatTo12Hour(due.hour, due.minute)}');
 
     // Check if already overdue
     if (due.isBefore(now)) {
-      print('TIMEAGO - Notification is overdue');
+      // print('TIMEAGO - Notification is overdue');
       return 'Overdue';
     }
 
@@ -80,8 +80,8 @@ class NotificationModel {
     final nowHour = now.hour;
     final nowMinute = now.minute;
 
-    print('TIMEAGO - Due date: $dueYear-$dueMonth-$dueDay $dueHour:$dueMinute');
-    print('TIMEAGO - Now date: $nowYear-$nowMonth-$nowDay $nowHour:$nowMinute');
+    // print('TIMEAGO - Due date: $dueYear-$dueMonth-$dueDay $dueHour:$dueMinute');
+    // print('TIMEAGO - Now date: $nowYear-$nowMonth-$nowDay $nowHour:$nowMinute');
 
     // Calculate days difference
     int daysDiff = 0;
@@ -112,7 +112,7 @@ class NotificationModel {
     // Convert days to hours
     hoursDiff += daysDiff * 24;
 
-    print('TIMEAGO - Manual calculation - Hours: $hoursDiff, Minutes: $minutesDiff');
+    // print('TIMEAGO - Manual calculation - Hours: $hoursDiff, Minutes: $minutesDiff');
 
     // Format the remaining time in a human-readable way
     String formattedTime;
@@ -131,7 +131,7 @@ class NotificationModel {
       formattedTime = 'Due now';
     }
 
-    print('TIMEAGO - Final formatted time: $formattedTime');
+    // print('TIMEAGO - Final formatted time: $formattedTime');
 
     // Return the manually formatted time
     return formattedTime;
@@ -147,9 +147,9 @@ class NotificationModel {
     DateTime due = dueDateTime!;
 
     // Debug prints to help diagnose time issues
-    print('TIMEAGO - Original time in formattedDueDateTime: ${due.toString()}');
-    print('TIMEAGO - Due time (24-hour): ${due.hour}:${due.minute}');
-    print('TIMEAGO - Due time (12-hour): ${formatTo12Hour(due.hour, due.minute)}');
+    // print('TIMEAGO - Original time in formattedDueDateTime: ${due.toString()}');
+    // print('TIMEAGO - Due time (24-hour): ${due.hour}:${due.minute}');
+    // print('TIMEAGO - Due time (12-hour): ${formatTo12Hour(due.hour, due.minute)}');
 
     // Extract date and time components
     final year = due.year;
@@ -168,7 +168,7 @@ class NotificationModel {
 
     // Format the time
     final formattedTime = '$monthName $day, $year - $hour12:${minute.toString().padLeft(2, '0')} $amPm';
-    print('TIMEAGO - Formatted due time: $formattedTime');
+    // print('TIMEAGO - Formatted due time: $formattedTime');
 
     return formattedTime;
   }

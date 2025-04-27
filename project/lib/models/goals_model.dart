@@ -49,13 +49,13 @@ class Goal {
       reminderDateTime = DateTime.parse(reminderDateTimeStr);
 
       final now = DateTime.now();
-      print('GOAL MODEL - Parsed reminder date time: ${reminderDateTime.toString()}');
-      print('GOAL MODEL - Reminder time zone offset: ${reminderDateTime.timeZoneOffset}');
-      print('GOAL MODEL - Current time: ${now.toString()}');
-      print('GOAL MODEL - Current time zone offset: ${now.timeZoneOffset}');
-      print('GOAL MODEL - Time difference: ${reminderDateTime.difference(now)}');
-      print('GOAL MODEL - Time difference in minutes: ${reminderDateTime.difference(now).inMinutes}');
-      print('GOAL MODEL - Time difference in seconds: ${reminderDateTime.difference(now).inSeconds}');
+      // print('GOAL MODEL - Parsed reminder date time: ${reminderDateTime.toString()}');
+      // print('GOAL MODEL - Reminder time zone offset: ${reminderDateTime.timeZoneOffset}');
+      // print('GOAL MODEL - Current time: ${now.toString()}');
+      // print('GOAL MODEL - Current time zone offset: ${now.timeZoneOffset}');
+      // print('GOAL MODEL - Time difference: ${reminderDateTime.difference(now)}');
+      // print('GOAL MODEL - Time difference in minutes: ${reminderDateTime.difference(now).inMinutes}');
+      // print('GOAL MODEL - Time difference in seconds: ${reminderDateTime.difference(now).inSeconds}');
     }
 
     return Goal(

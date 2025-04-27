@@ -30,11 +30,11 @@ class _NotificationPageState extends State<NotificationPage> {
     // Use a try-catch block to handle any errors that might occur
     try {
       if (_isLoading) {
-        print('⚠️ Already refreshing notifications, skipping duplicate refresh');
+        // print('⚠️ Already refreshing notifications, skipping duplicate refresh');
         return; // Prevent multiple simultaneous refreshes
       }
 
-      print('🔄 Refreshing notifications...');
+      // print('🔄 Refreshing notifications...');
 
       if (mounted) {
         setState(() {
@@ -46,9 +46,9 @@ class _NotificationPageState extends State<NotificationPage> {
       // Get current user info for debugging
       final userData = await LocalStorage.getUser();
       if (userData != null) {
-        print('🧑‍💻 Current user: ${userData['email']} (ID: ${userData['id']})');
+        // print('🧑‍💻 Current user: ${userData['email']} (ID: ${userData['id']})');
       } else {
-        print('⚠️ No user data found in local storage');
+        // print('⚠️ No user data found in local storage');
         if (mounted) {
           setState(() {
             _errorMessage = 'You need to be logged in to view notifications.';
@@ -63,16 +63,16 @@ class _NotificationPageState extends State<NotificationPage> {
       final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
 
       // Force a complete refresh by reinitializing the provider
-      print('🔄 Reinitializing notification provider to get fresh data from backend');
+      // print('🔄 Reinitializing notification provider to get fresh data from backend');
       await notificationProvider.initialize();
 
       // Print notification read status for debugging
       final notifications = notificationProvider.notifications;
-      print('✅ Notifications refreshed successfully. Total: ${notifications.length}');
+      // print('✅ Notifications refreshed successfully. Total: ${notifications.length}');
 
       // Log each notification's read status for debugging
       for (var notification in notifications) {
-        print('📌 Notification ID: ${notification.id}, Title: ${notification.title}, Read: ${notification.isRead}');
+        // print('📌 Notification ID: ${notification.id}, Title: ${notification.title}, Read: ${notification.isRead}');
       }
     } catch (error) {
       print('❌ Error refreshing notifications: $error');
@@ -177,32 +177,36 @@ class _NotificationPageState extends State<NotificationPage> {
                 break;
               }
 
-              // Check if notification is past due or exactly due now
+              // Check if notification is due now or in the past
               final now = DateTime.now();
               final dueDateTime = notification.dueDateTime!;
 
-              // Calculate the difference in minutes between due time and current time
-              int minutesDifference = 0;
+              // Compare year, month, day, hour, and minute directly
+              bool isPastOrDueNow = false;
 
-              // Calculate total minutes for both times for easier comparison
-              int dueTotalMinutes = (dueDateTime.hour * 60) + dueDateTime.minute;
-              int nowTotalMinutes = (now.hour * 60) + now.minute;
+              // If it's a past year
+              if (dueDateTime.year < now.year) {
+                isPastOrDueNow = true;
+              }
+              // If it's the same year but past month
+              else if (dueDateTime.year == now.year && dueDateTime.month < now.month) {
+                isPastOrDueNow = true;
+              }
+              // If it's the same year and month but past day
+              else if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day < now.day) {
+                isPastOrDueNow = true;
+              }
+              // If it's the same day, compare hour and minute
+              else if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day == now.day) {
+                // Calculate total minutes for easier comparison
+                int dueMinutes = (dueDateTime.hour * 60) + dueDateTime.minute;
+                int nowMinutes = (now.hour * 60) + now.minute;
 
-              // If it's the same day, calculate minute difference
-              if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day == now.day) {
-                minutesDifference = nowTotalMinutes - dueTotalMinutes;
-              } else if (dueDateTime.year < now.year ||
-                        (dueDateTime.year == now.year && dueDateTime.month < now.month) ||
-                        (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day < now.day)) {
-                // If it's a past day, it's definitely past due
-                minutesDifference = 1; // Just a positive value to indicate past
-              } else {
-                // Future day
-                minutesDifference = -1; // Negative value to indicate future
+                // Show if due time is earlier than or equal to current time
+                isPastOrDueNow = dueMinutes <= nowMinutes;
               }
 
-              // Show if past due (positive minutes difference) or exactly due now (0 minutes difference)
-              if (minutesDifference >= 0) {
+              if (isPastOrDueNow) {
                 hasVisibleNotifications = true;
                 break;
               }
@@ -296,53 +300,49 @@ class _NotificationPageState extends State<NotificationPage> {
                       bool shouldShow = true;
 
                       if (notification.dueDateTime != null) {
-                        // Check if the notification is in the past or exactly due now
+                        // Get the due date time
                         DateTime dueDateTime = notification.dueDateTime!;
 
-                        // Calculate the difference in minutes between due time and current time
-                        int minutesDifference = 0;
+                        // Debug print - commented out to reduce console output
+                        // print('NOTIFICATION FILTER - ID: ${notification.id}, Title: ${notification.title}');
+                        // print('NOTIFICATION FILTER - Due: ${dueDateTime.toString()}, Now: ${now.toString()}');
 
-                        // Calculate total minutes for both times for easier comparison
-                        int dueTotalMinutes = (dueDateTime.hour * 60) + dueDateTime.minute;
-                        int nowTotalMinutes = (now.hour * 60) + now.minute;
+                        // Compare year, month, day, hour, and minute directly
+                        bool isPastOrDueNow = false;
 
-                        // Check if same day or past day
-                        bool isSameOrPastDay = (dueDateTime.year < now.year) ||
-                                             (dueDateTime.year == now.year && dueDateTime.month < now.month) ||
-                                             (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day <= now.day);
+                        // If it's a past year
+                        if (dueDateTime.year < now.year) {
+                          isPastOrDueNow = true;
+                        }
+                        // If it's the same year but past month
+                        else if (dueDateTime.year == now.year && dueDateTime.month < now.month) {
+                          isPastOrDueNow = true;
+                        }
+                        // If it's the same year and month but past day
+                        else if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day < now.day) {
+                          isPastOrDueNow = true;
+                        }
+                        // If it's the same day, compare hour and minute
+                        else if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day == now.day) {
+                          // Calculate total minutes for easier comparison
+                          int dueMinutes = (dueDateTime.hour * 60) + dueDateTime.minute;
+                          int nowMinutes = (now.hour * 60) + now.minute;
 
-                        // If it's the same day, calculate minute difference
-                        if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day == now.day) {
-                          minutesDifference = nowTotalMinutes - dueTotalMinutes;
-                        } else if (dueDateTime.year < now.year ||
-                                  (dueDateTime.year == now.year && dueDateTime.month < now.month) ||
-                                  (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day < now.day)) {
-                          // If it's a past day, it's definitely past due
-                          minutesDifference = 1; // Just a positive value to indicate past
-                        } else {
-                          // Future day
-                          minutesDifference = -1; // Negative value to indicate future
+                          // Show if due time is earlier than or equal to current time
+                          isPastOrDueNow = dueMinutes <= nowMinutes;
                         }
 
-                        // Debug print
-                        print('NOTIFICATION FILTER - ID: ${notification.id}, Title: ${notification.title}');
-                        print('NOTIFICATION FILTER - Due: ${dueDateTime.toString()}, Now: ${now.toString()}');
-                        print('NOTIFICATION FILTER - Minutes difference: $minutesDifference');
-
-                        // Show if past due (positive minutes difference) or exactly due now (0 minutes difference)
-                        // This ensures notifications appear exactly at their due time
-                        shouldShow = minutesDifference >= 0;
-
-                        print('NOTIFICATION FILTER - Should show: $shouldShow');
+                        shouldShow = isPastOrDueNow;
+                        // print('NOTIFICATION FILTER - Should show: $shouldShow');
                       }
 
                       // If notification should not be shown, return an empty container
                       if (!shouldShow) {
-                        print('NOTIFICATION LIST - Hiding notification ID: ${notification.id}, Title: ${notification.title} (not past due yet)');
+                        // print('NOTIFICATION LIST - Hiding notification ID: ${notification.id}, Title: ${notification.title} (not past due yet)');
                         return const SizedBox.shrink();
                       }
 
-                      print('NOTIFICATION LIST - Showing notification ID: ${notification.id}, Title: ${notification.title} (past due or no due date)');
+                      // print('NOTIFICATION LIST - Showing notification ID: ${notification.id}, Title: ${notification.title} (past due or no due date)');
 
                       return _buildNotificationCard(context, notification);
                     },
@@ -366,11 +366,11 @@ class _NotificationPageState extends State<NotificationPage> {
       DateTime dueDateTime = notification.dueDateTime!;
 
       // Debug prints to help diagnose time issues
-      print('NOTIFICATION CARD - Original time: ${dueDateTime.toString()}');
-      print('NOTIFICATION CARD - Due time (24-hour): ${dueDateTime.hour}:${dueDateTime.minute}');
-      print('NOTIFICATION CARD - Due time (12-hour): ${formatTo12Hour(dueDateTime.hour, dueDateTime.minute)}');
-      print('NOTIFICATION CARD - Current time (24-hour): ${now.hour}:${now.minute}');
-      print('NOTIFICATION CARD - Current time (12-hour): ${formatTo12Hour(now.hour, now.minute)}');
+      // print('NOTIFICATION CARD - Original time: ${dueDateTime.toString()}');
+      // print('NOTIFICATION CARD - Due time (24-hour): ${dueDateTime.hour}:${dueDateTime.minute}');
+      // print('NOTIFICATION CARD - Due time (12-hour): ${formatTo12Hour(dueDateTime.hour, dueDateTime.minute)}');
+      // print('NOTIFICATION CARD - Current time (24-hour): ${now.hour}:${now.minute}');
+      // print('NOTIFICATION CARD - Current time (12-hour): ${formatTo12Hour(now.hour, now.minute)}');
 
       // Calculate the difference in minutes between due time and current time
       int minutesDifference = 0;
@@ -396,12 +396,12 @@ class _NotificationPageState extends State<NotificationPage> {
       isPast = minutesDifference > 0;
       isDueNow = minutesDifference == 0;
 
-      print('NOTIFICATION CARD - Minutes difference: $minutesDifference');
-      print('NOTIFICATION CARD - Is past: $isPast, Is due now: $isDueNow');
+      // print('NOTIFICATION CARD - Minutes difference: $minutesDifference');
+      // print('NOTIFICATION CARD - Is past: $isPast, Is due now: $isDueNow');
 
       // Get the remaining time from the notification model
       final remainingTime = notification.remainingTime;
-      print('NOTIFICATION CARD - Remaining time: $remainingTime');
+      // print('NOTIFICATION CARD - Remaining time: $remainingTime');
     }
 
     return Dismissible(
@@ -694,19 +694,19 @@ class _NotificationPageState extends State<NotificationPage> {
   }
 
   void _handleNotificationTap(BuildContext context, NotificationModel notification) {
-    print('👆 User tapped on notification #${notification.id}');
+    // print('👆 User tapped on notification #${notification.id}');
 
     // Check if it's a goal notification and has a source ID
     if (notification.type == NotificationType.goalReminder && notification.sourceId != null) {
       final int goalId = notification.sourceId!;
-      print('🎯 Found goal ID: $goalId');
+      // print('🎯 Found goal ID: $goalId');
 
       // Mark notification as read
       final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
       notificationProvider.markAsRead(notification.id);
 
       // Navigate to the goal page with the highlighted goal ID
-      print('🚀 Navigating to goal page with highlighted goal ID: $goalId');
+      // print('🚀 Navigating to goal page with highlighted goal ID: $goalId');
 
       // Use a simple navigation approach with .then() to refresh after returning
       Navigator.push(
@@ -719,7 +719,7 @@ class _NotificationPageState extends State<NotificationPage> {
       ).then((_) {
         // Refresh notifications when returning from the goal page
         if (mounted) {
-          print('🔄 Refreshing notifications after returning from goal page');
+          // print('🔄 Refreshing notifications after returning from goal page');
           _refreshNotifications();
         }
       });

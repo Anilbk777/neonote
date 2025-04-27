@@ -21,37 +21,37 @@ class NotificationProvider extends ChangeNotifier {
   // Initialize the provider
   Future<void> initialize() async {
     try {
-      print('🔄 Initializing notification provider...');
+      // print('🔄 Initializing notification provider...');
 
       // Check if user is logged in
       final currentUser = await LocalStorage.getUser();
       if (currentUser == null) {
-        print('⚠️ No user found in local storage, skipping notification initialization');
+        // print('⚠️ No user found in local storage, skipping notification initialization');
         _notifications = [];
         notifyListeners();
         throw Exception('User not logged in. Please log in to view notifications.');
       }
 
       final userKey = currentUser['id'] ?? currentUser['email'] ?? 'unknown_user';
-      print('🔑 Initializing notifications for user: $userKey (ID: ${currentUser['id']})');
+      // print('🔑 Initializing notifications for user: $userKey (ID: ${currentUser['id']})');
 
       // First try to fetch from API (if available)
       try {
-        print('🔄 Fetching notifications from API...');
+        // print('🔄 Fetching notifications from API...');
         final apiNotifications = await NotificationService.fetchNotifications();
-        print('✅ Successfully fetched ${apiNotifications.length} notifications from API');
+        // print('✅ Successfully fetched ${apiNotifications.length} notifications from API');
 
         // Use only API notifications - this ensures we only show notifications for the current user
         _notifications = apiNotifications;
 
         // Save to local storage
         await _saveNotifications();
-        print('💾 Saved notifications to local storage');
+        // print('💾 Saved notifications to local storage');
       } catch (e) {
         print('❌ Failed to fetch notifications from API: $e');
 
         // Fall back to local notifications
-        print('⚠️ Falling back to local notifications');
+        // print('⚠️ Falling back to local notifications');
         await _loadNotifications();
 
         // If we still have no notifications, rethrow the error
@@ -66,22 +66,22 @@ class NotificationProvider extends ChangeNotifier {
 
       // Debug log all notifications
       if (_notifications.isNotEmpty) {
-        print('📋 Loaded ${_notifications.length} notifications for user: $userKey');
-        print('📋 Notification summary:');
-        for (var notification in _notifications) {
-          print('  - ID: ${notification.id}');
-          print('    Title: ${notification.title}');
-          print('    Type: ${notification.type}');
-          print('    Source ID: ${notification.sourceId}');
-          print('    Created: ${notification.createdAt}');
-          if (notification.dueDateTime != null) {
-            print('    Due: ${notification.dueDateTime}');
-          }
-        }
+        // print('📋 Loaded ${_notifications.length} notifications for user: $userKey');
+        // print('📋 Notification summary:');
+        // for (var notification in _notifications) {
+        //   print('  - ID: ${notification.id}');
+        //   print('    Title: ${notification.title}');
+        //   print('    Type: ${notification.type}');
+        //   print('    Source ID: ${notification.sourceId}');
+        //   print('    Created: ${notification.createdAt}');
+        //   if (notification.dueDateTime != null) {
+        //     print('    Due: ${notification.dueDateTime}');
+        //   }
+        // }
       } else {
-        print('📋 No notifications loaded for user: $userKey');
-        print('📋 This could be normal if the user has no notifications, or it could indicate a problem.');
-        print('📋 Check the backend to verify if this user should have notifications.');
+        // print('📋 No notifications loaded for user: $userKey');
+        // print('📋 This could be normal if the user has no notifications, or it could indicate a problem.');
+        // print('📋 Check the backend to verify if this user should have notifications.');
       }
 
       // Notify listeners
@@ -109,29 +109,29 @@ class NotificationProvider extends ChangeNotifier {
     // Debug print to check the actual reminder time
     final now = DateTime.now();
 
-    print('NOTIFICATION PROVIDER - Adding reminder notification for goal: ${goal.title}');
-    print('NOTIFICATION PROVIDER - Reminder date/time: ${reminderDateTime.toString()}');
+    // print('NOTIFICATION PROVIDER - Adding reminder notification for goal: ${goal.title}');
+    // print('NOTIFICATION PROVIDER - Reminder date/time: ${reminderDateTime.toString()}');
 
     // Check if the reminder time is in UTC (has 'Z' suffix)
     bool isUtc = reminderDateTime!.toString().endsWith('Z');
-    print('NOTIFICATION PROVIDER - Is UTC time: $isUtc');
+    // print('NOTIFICATION PROVIDER - Is UTC time: $isUtc');
 
-    print('NOTIFICATION PROVIDER - Reminder time (24-hour): ${reminderDateTime.hour}:${reminderDateTime.minute}');
-    print('NOTIFICATION PROVIDER - Reminder time (12-hour): ${formatTo12Hour(reminderDateTime.hour, reminderDateTime.minute)}');
-    print('NOTIFICATION PROVIDER - Current time: ${now.toString()}');
-    print('NOTIFICATION PROVIDER - Current time (12-hour): ${formatTo12Hour(now.hour, now.minute)}');
+    // print('NOTIFICATION PROVIDER - Reminder time (24-hour): ${reminderDateTime.hour}:${reminderDateTime.minute}');
+    // print('NOTIFICATION PROVIDER - Reminder time (12-hour): ${formatTo12Hour(reminderDateTime.hour, reminderDateTime.minute)}');
+    // print('NOTIFICATION PROVIDER - Current time: ${now.toString()}');
+    // print('NOTIFICATION PROVIDER - Current time (12-hour): ${formatTo12Hour(now.hour, now.minute)}');
 
     // If the time is in UTC, convert it to local time for comparison
     DateTime localReminderDateTime = reminderDateTime;
     if (isUtc) {
       // Convert UTC time to local time
       localReminderDateTime = reminderDateTime.toLocal();
-      print('NOTIFICATION PROVIDER - Reminder date time (converted to local): ${localReminderDateTime.toString()}');
-      print('NOTIFICATION PROVIDER - Reminder time after conversion (24-hour): ${localReminderDateTime.hour}:${localReminderDateTime.minute}');
-      print('NOTIFICATION PROVIDER - Reminder time after conversion (12-hour): ${formatTo12Hour(localReminderDateTime.hour, localReminderDateTime.minute)}');
+      // print('NOTIFICATION PROVIDER - Reminder date time (converted to local): ${localReminderDateTime.toString()}');
+      // print('NOTIFICATION PROVIDER - Reminder time after conversion (24-hour): ${localReminderDateTime.hour}:${localReminderDateTime.minute}');
+      // print('NOTIFICATION PROVIDER - Reminder time after conversion (12-hour): ${formatTo12Hour(localReminderDateTime.hour, localReminderDateTime.minute)}');
     }
 
-    print('NOTIFICATION PROVIDER - Time difference in minutes: ${localReminderDateTime.difference(now).inMinutes}');
+    // print('NOTIFICATION PROVIDER - Time difference in minutes: ${localReminderDateTime.difference(now).inMinutes}');
 
     // Check if a notification for this goal already exists
     final existingIndex = _notifications.indexWhere(
@@ -188,13 +188,13 @@ class NotificationProvider extends ChangeNotifier {
 
   // Mark a notification as read
   Future<bool> markAsRead(int notificationId) async {
-    print('🔄 NotificationProvider: Marking notification #$notificationId as read');
+    // print('🔄 NotificationProvider: Marking notification #$notificationId as read');
 
     // First try to update on the server
     bool serverUpdateSuccess = false;
     try {
       await NotificationService.markAsRead(notificationId);
-      print('✅ NotificationProvider: Notification #$notificationId marked as read on server');
+      // print('✅ NotificationProvider: Notification #$notificationId marked as read on server');
       serverUpdateSuccess = true;
     } catch (e) {
       print('❌ NotificationProvider: Failed to mark notification as read on server: $e');
@@ -213,21 +213,21 @@ class NotificationProvider extends ChangeNotifier {
       // Notify listeners to update UI
       notifyListeners();
 
-      print('✅ NotificationProvider: Notification #$notificationId marked as read locally');
+      // print('✅ NotificationProvider: Notification #$notificationId marked as read locally');
 
       // If server update failed, try to refresh from server to ensure consistency
       if (!serverUpdateSuccess) {
         // Try to refresh notifications from server after a short delay
         Future.delayed(const Duration(milliseconds: 500), () {
           initialize().catchError((error) {
-            print('❌ Error refreshing notifications after failed server update: $error');
+            // print('❌ Error refreshing notifications after failed server update: $error');
           });
         });
       }
 
       return true;
     } else {
-      print('⚠️ NotificationProvider: Notification #$notificationId not found');
+      // print('⚠️ NotificationProvider: Notification #$notificationId not found');
       return false;
     }
   }
@@ -242,7 +242,7 @@ class NotificationProvider extends ChangeNotifier {
     try {
       await NotificationService.markAllAsRead();
     } catch (e) {
-      print('Failed to mark all notifications as read on server: $e');
+      // print('Failed to mark all notifications as read on server: $e');
       // Continue with local update
     }
   }
@@ -279,7 +279,7 @@ class NotificationProvider extends ChangeNotifier {
 
   // Clear notifications when user logs out
   Future<void> clearNotifications() async {
-    print('🧹 Clearing all notifications from memory');
+    // print('🧹 Clearing all notifications from memory');
     _notifications.clear();
     _nextId = 1;
     notifyListeners();
@@ -295,12 +295,12 @@ class NotificationProvider extends ChangeNotifier {
       // Get the current user ID or email to use as a key
       final currentUser = await LocalStorage.getUser();
       if (currentUser == null) {
-        print('⚠️ No user found in local storage, skipping notification saving');
+        // print('⚠️ No user found in local storage, skipping notification saving');
         return;
       }
 
       final userKey = currentUser['id'] ?? currentUser['email'] ?? 'unknown_user';
-      print('🔑 Saving notifications for user: $userKey');
+      // print('🔑 Saving notifications for user: $userKey');
 
       final notificationsJson = _notifications.map((notification) => {
         'id': notification.id,
@@ -316,7 +316,7 @@ class NotificationProvider extends ChangeNotifier {
       // Use a user-specific key for storing notifications
       await prefs.setString('notifications_$userKey', jsonEncode(notificationsJson));
       await prefs.setInt('next_notification_id_$userKey', _nextId);
-      print('💾 Saved ${notificationsJson.length} notifications for user: $userKey');
+      // print('💾 Saved ${notificationsJson.length} notifications for user: $userKey');
     } catch (e) {
       print('❌ Error saving notifications: $e');
     }
@@ -354,12 +354,12 @@ class NotificationProvider extends ChangeNotifier {
     });
 
     // Debug print the sorted notifications
-    print('📋 Sorted notifications:');
+    // print('📋 Sorted notifications:');
     for (var notification in _notifications) {
       final dueStr = notification.dueDateTime != null
           ? '${notification.dueDateTime!.toString()}'
           : 'No due date';
-      print('  - ID: ${notification.id}, Title: ${notification.title}, Created: ${notification.createdAt}, Due: $dueStr');
+      // print('  - ID: ${notification.id}, Title: ${notification.title}, Created: ${notification.createdAt}, Due: $dueStr');
     }
   }
 
@@ -377,15 +377,15 @@ class NotificationProvider extends ChangeNotifier {
       }
 
       final userKey = currentUser['id'] ?? currentUser['email'] ?? 'unknown_user';
-      print('🔑 Loading notifications for user: $userKey');
+      // print('🔑 Loading notifications for user: $userKey');
 
       // Use a user-specific key for storing notifications
       final notificationsJson = prefs.getString('notifications_$userKey');
-      print('📂 Found stored notifications: ${notificationsJson != null}');
+      // print('📂 Found stored notifications: ${notificationsJson != null}');
 
       if (notificationsJson != null && notificationsJson.isNotEmpty) {
         final List<dynamic> decodedJson = jsonDecode(notificationsJson);
-        print('📊 Loaded ${decodedJson.length} notifications from storage');
+        // print('📊 Loaded ${decodedJson.length} notifications from storage');
 
         _notifications = [];
         for (var item in decodedJson) {
@@ -438,7 +438,7 @@ class NotificationProvider extends ChangeNotifier {
 
         _nextId = prefs.getInt('next_notification_id_$userKey') ?? 1;
       } else {
-        print('📭 No notifications found in storage for user: $userKey');
+        // print('📭 No notifications found in storage for user: $userKey');
         _notifications = [];
       }
     } catch (e) {
