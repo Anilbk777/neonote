@@ -7,8 +7,9 @@ class NotificationService {
   // Base URL for the API
   static const String baseUrl = 'http://127.0.0.1:8000/api';
 
-  // Notifications endpoint
-  static const String notificationsEndpoint = '/notifications';
+  // Notifications endpoint - note the double 'notifications' in the path
+  // This matches the Django router structure
+  static const String notificationsEndpoint = '/notifications/notifications';
 
   // Print the full URL for debugging
   static void _logUrl(String endpoint) {
@@ -35,7 +36,7 @@ class NotificationService {
     try {
       final headers = await _getAuthHeaders();
       // Use the correct endpoint for fetching notifications
-      // The endpoint should be empty or just '/' since we're already at the notifications base URL
+      // The endpoint should be empty since we're already at the notifications base URL
       final endpoint = '';
       _logUrl(endpoint);
       print('📡 Fetching notifications...');
@@ -211,10 +212,20 @@ class NotificationService {
       final headers = await _getAuthHeaders();
       print('📡 Marking notification #$notificationId as read');
 
+      // Use the correct endpoint format as defined in the Django ViewSet
       final endpoint = '/$notificationId/mark_as_read/';
       _logUrl(endpoint);
+
+      // Print the full URL for debugging
+      final url = '$baseUrl$notificationsEndpoint$endpoint';
+      print('🔗 Full URL: $url');
+
+      // Add extra debugging
+      print('🔍 Notification ID: $notificationId');
+      print('🔍 Headers: $headers');
+
       final response = await http.post(
-        Uri.parse('$baseUrl$notificationsEndpoint$endpoint'),
+        Uri.parse(url),
         headers: headers,
       );
 
@@ -242,8 +253,13 @@ class NotificationService {
 
       final endpoint = '/mark_all_as_read/';
       _logUrl(endpoint);
+
+      // Print the full URL for debugging
+      final url = '$baseUrl$notificationsEndpoint$endpoint';
+      print('🔗 Full URL: $url');
+
       final response = await http.post(
-        Uri.parse('$baseUrl$notificationsEndpoint$endpoint'),
+        Uri.parse(url),
         headers: headers,
       );
 
@@ -271,8 +287,13 @@ class NotificationService {
 
       final endpoint = '/$notificationId/';
       _logUrl(endpoint);
+
+      // Print the full URL for debugging
+      final url = '$baseUrl$notificationsEndpoint$endpoint';
+      print('🔗 Full URL: $url');
+
       final response = await http.delete(
-        Uri.parse('$baseUrl$notificationsEndpoint$endpoint'),
+        Uri.parse(url),
         headers: headers,
       );
 
@@ -300,8 +321,13 @@ class NotificationService {
 
       final endpoint = '/delete_all/';
       _logUrl(endpoint);
+
+      // Print the full URL for debugging
+      final url = '$baseUrl$notificationsEndpoint$endpoint';
+      print('🔗 Full URL: $url');
+
       final response = await http.delete(
-        Uri.parse('$baseUrl$notificationsEndpoint$endpoint'),
+        Uri.parse(url),
         headers: headers,
       );
 

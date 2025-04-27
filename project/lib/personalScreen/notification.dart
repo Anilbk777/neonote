@@ -27,35 +27,62 @@ class _NotificationPageState extends State<NotificationPage> {
 
   // Refresh notifications
   Future<void> _refreshNotifications() async {
-    if (_isLoading) return; // Prevent multiple simultaneous refreshes
-
-    setState(() {
-      _isLoading = true;
-      _errorMessage = '';
-    });
-
+    // Use a try-catch block to handle any errors that might occur
     try {
+      if (_isLoading) {
+        print('⚠️ Already refreshing notifications, skipping duplicate refresh');
+        return; // Prevent multiple simultaneous refreshes
+      }
+
+      print('🔄 Refreshing notifications...');
+
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+          _errorMessage = '';
+        });
+      }
+
       // Get current user info for debugging
       final userData = await LocalStorage.getUser();
       if (userData != null) {
         print('🧑‍💻 Current user: ${userData['email']} (ID: ${userData['id']})');
       } else {
         print('⚠️ No user data found in local storage');
-        setState(() {
-          _errorMessage = 'You need to be logged in to view notifications.';
-        });
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'You need to be logged in to view notifications.';
+            _isLoading = false;
+          });
+        }
         return;
       }
 
+      // Get the notification provider safely
+      if (!mounted) return;
       final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+
+      // Force a complete refresh by reinitializing the provider
+      print('🔄 Reinitializing notification provider to get fresh data from backend');
       await notificationProvider.initialize();
-      print('✅ Notifications refreshed successfully');
+
+      // Print notification read status for debugging
+      final notifications = notificationProvider.notifications;
+      print('✅ Notifications refreshed successfully. Total: ${notifications.length}');
+
+      // Log each notification's read status for debugging
+      for (var notification in notifications) {
+        print('📌 Notification ID: ${notification.id}, Title: ${notification.title}, Read: ${notification.isRead}');
+      }
     } catch (error) {
       print('❌ Error refreshing notifications: $error');
-      setState(() {
-        _errorMessage = 'Failed to load notifications. Please try again.';
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load notifications. Please try again.';
+        });
+      }
     } finally {
+      // Always make sure to update the loading state
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -400,13 +427,16 @@ class _NotificationPageState extends State<NotificationPage> {
         );
       },
       child: Card(
+        // Add a key that includes the read status to force rebuild when it changes
+        key: ValueKey('notification-card-${notification.id}-${notification.isRead}'),
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         elevation: notification.isRead ? 1 : 3,
+        color: notification.isRead ? Colors.grey[100] : Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: notification.isRead
-              ? BorderSide.none
-              : const BorderSide(color: Color(0xFF255DE1), width: 1),
+              ? BorderSide(color: Colors.grey[400]!, width: 1)
+              : const BorderSide(color: Color(0xFF255DE1), width: 2),
         ),
         child: InkWell(
           onTap: () {
@@ -432,6 +462,7 @@ class _NotificationPageState extends State<NotificationPage> {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: notification.isRead ? FontWeight.normal : FontWeight.bold,
+                              color: notification.isRead ? Colors.grey[700] : Colors.black,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -439,7 +470,8 @@ class _NotificationPageState extends State<NotificationPage> {
                             notification.message,
                             style: TextStyle(
                               fontSize: 14,
-                              color: Colors.grey[600],
+                              color: notification.isRead ? Colors.grey[500] : Colors.grey[600],
+                              fontStyle: notification.isRead ? FontStyle.italic : FontStyle.normal,
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -535,6 +567,35 @@ class _NotificationPageState extends State<NotificationPage> {
                           shape: BoxShape.circle,
                           color: Color(0xFF255DE1),
                         ),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.grey[400]!),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              size: 12,
+                              color: Colors.grey[700],
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'READ',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey[800],
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                   ],
                 ),
@@ -567,34 +628,55 @@ class _NotificationPageState extends State<NotificationPage> {
                 dueTotalMinutes == nowTotalMinutes;
     }
 
-    switch (notification.type) {
-      case NotificationType.goalReminder:
-        iconData = Icons.flag;
-        if (isPast) {
-          iconColor = Colors.red;
-        } else if (isDueNow) {
-          iconColor = Colors.green;
-        } else {
-          iconColor = const Color(0xFF255DE1);
-        }
-        break;
-      case NotificationType.taskDue:
-        iconData = Icons.task_alt;
-        if (isPast) {
-          iconColor = Colors.red;
-        } else if (isDueNow) {
-          iconColor = Colors.green;
-        } else {
-          iconColor = Colors.orange;
-        }
-        break;
-      case NotificationType.systemNotification:
-        iconData = Icons.info;
-        iconColor = Colors.grey;
-        break;
-      default:
-        iconData = Icons.notifications;
-        iconColor = Colors.grey;
+    // If notification is read, use a different icon
+    if (notification.isRead) {
+      switch (notification.type) {
+        case NotificationType.goalReminder:
+          iconData = Icons.check_circle;
+          iconColor = Colors.grey[400]!;
+          break;
+        case NotificationType.taskDue:
+          iconData = Icons.check_circle;
+          iconColor = Colors.grey[400]!;
+          break;
+        case NotificationType.systemNotification:
+          iconData = Icons.check_circle;
+          iconColor = Colors.grey[400]!;
+          break;
+        default:
+          iconData = Icons.check_circle;
+          iconColor = Colors.grey[400]!;
+      }
+    } else {
+      switch (notification.type) {
+        case NotificationType.goalReminder:
+          iconData = Icons.flag;
+          if (isPast) {
+            iconColor = Colors.red;
+          } else if (isDueNow) {
+            iconColor = Colors.green;
+          } else {
+            iconColor = const Color(0xFF255DE1);
+          }
+          break;
+        case NotificationType.taskDue:
+          iconData = Icons.task_alt;
+          if (isPast) {
+            iconColor = Colors.red;
+          } else if (isDueNow) {
+            iconColor = Colors.green;
+          } else {
+            iconColor = Colors.orange;
+          }
+          break;
+        case NotificationType.systemNotification:
+          iconData = Icons.info;
+          iconColor = Colors.grey;
+          break;
+        default:
+          iconData = Icons.notifications;
+          iconColor = Colors.grey;
+      }
     }
 
     return Container(
@@ -612,14 +694,35 @@ class _NotificationPageState extends State<NotificationPage> {
   }
 
   void _handleNotificationTap(BuildContext context, NotificationModel notification) {
-    Provider.of<NotificationProvider>(context, listen: false)
-        .markAsRead(notification.id);
+    print('👆 User tapped on notification #${notification.id}');
 
+    // Check if it's a goal notification and has a source ID
     if (notification.type == NotificationType.goalReminder && notification.sourceId != null) {
+      final int goalId = notification.sourceId!;
+      print('🎯 Found goal ID: $goalId');
+
+      // Mark notification as read
+      final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+      notificationProvider.markAsRead(notification.id);
+
+      // Navigate to the goal page with the highlighted goal ID
+      print('🚀 Navigating to goal page with highlighted goal ID: $goalId');
+
+      // Use a simple navigation approach with .then() to refresh after returning
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => const GoalPage()),
-      );
+        MaterialPageRoute(
+          builder: (context) => GoalPage(
+            highlightedGoalId: goalId,
+          ),
+        ),
+      ).then((_) {
+        // Refresh notifications when returning from the goal page
+        if (mounted) {
+          print('🔄 Refreshing notifications after returning from goal page');
+          _refreshNotifications();
+        }
+      });
     }
   }
 

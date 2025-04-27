@@ -90,7 +90,16 @@ class _CustomScaffoldState extends State<CustomScaffold> {
                     ),
                     const Divider(),
                     _buildSidebarItem(Icons.home, 'Home', '/dashboard'),
-                    _buildSidebarItem(Icons.notifications, 'Notification', NotificationPage()),
+                    Consumer<NotificationProvider>(
+                      builder: (context, notificationProvider, child) {
+                        return _buildSidebarItem(
+                          Icons.notifications,
+                          'Notification',
+                          NotificationPage(),
+                          badgeCount: notificationProvider.unreadCount,
+                        );
+                      },
+                    ),
                     const Divider(),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -148,13 +157,14 @@ class _CustomScaffoldState extends State<CustomScaffold> {
     );
   }
 
- Widget _buildSidebarItem(IconData icon, String label, dynamic destination) {
+ Widget _buildSidebarItem(IconData icon, String label, dynamic destination, {int badgeCount = 0}) {
   bool isSelected = widget.selectedPage == label;
 
   return _HoverSidebarItem(
     icon: icon,
     label: label,
     isSelected: isSelected,
+    badgeCount: badgeCount,
     onTap: () {
       // Delay navigation until the current frame is complete
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -292,12 +302,14 @@ class _HoverSidebarItem extends StatefulWidget {
   final String label;
   final VoidCallback onTap;
   final bool isSelected;
+  final int badgeCount;
 
   const _HoverSidebarItem({
     required this.icon,
     required this.label,
     required this.onTap,
     this.isSelected = false,
+    this.badgeCount = 0,
   });
 
   @override
@@ -403,6 +415,27 @@ class _HoverSidebarItemState extends State<_HoverSidebarItem> with SingleTickerP
                           ),
                         ),
                       ),
+                      if (widget.badgeCount > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 20,
+                            minHeight: 20,
+                          ),
+                          child: Text(
+                            widget.badgeCount > 99 ? '99+' : widget.badgeCount.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
                     ],
                   ),
                 ),

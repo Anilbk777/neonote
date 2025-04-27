@@ -6,13 +6,20 @@ import 'package:project/widgets/custom_scaffold.dart';
 import 'package:project/models/goals_model.dart';
 import 'package:project/services/goal_service.dart';
 import 'package:project/widgets/goal_cards.dart';
+import 'package:project/widgets/highlighted_goal_card.dart';
 import 'package:project/personalScreen/bin.dart';
 import 'package:project/providers/notification_provider.dart';
 import 'package:project/models/notification_model.dart';
+import 'dart:math' as Math;
 import 'goal_helpers.dart';
 
 class GoalPage extends StatefulWidget {
-  const GoalPage({super.key});
+  final int? highlightedGoalId;
+
+  const GoalPage({
+    super.key,
+    this.highlightedGoalId,
+  });
 
   @override
   State<GoalPage> createState() => _GoalPageState();
@@ -30,6 +37,10 @@ class _GoalPageState extends State<GoalPage> {
   bool _noGoalsFound = false;
   bool _hasReminder = false;
   DateTime? _reminderDateTime;
+  final ScrollController _scrollController = ScrollController();
+
+  // Global key for the highlighted goal card
+  final GlobalKey _highlightedGoalKey = GlobalKey();
 
   @override
   void initState() {
@@ -37,12 +48,70 @@ class _GoalPageState extends State<GoalPage> {
     _loadGoals();
     _goalController.addListener(_clearSearchOnGoalFocus);
     _searchController.addListener(_clearGoalOnSearchFocus);
+
+    // If there's a highlighted goal ID, set up a post-frame callback
+    if (widget.highlightedGoalId != null) {
+      print('🔍 Setting up post-frame callback for highlighted goal ID: ${widget.highlightedGoalId}');
+
+      // Wait for the first frame to be rendered
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        print('🖼️ First frame rendered, scrolling will be handled after goals are loaded');
+        // The actual scrolling is handled in _loadGoals after the goals are loaded
+      });
+    }
+  }
+
+  // Method to scroll to the highlighted goal
+  void _scrollToHighlightedGoal() {
+    print('🔍 Attempting to scroll to highlighted goal ID: ${widget.highlightedGoalId}');
+
+    // Wait for goals to load
+    if (_isLoading || _goals.isEmpty) {
+      print('⏳ Goals not loaded yet, retrying in 500ms...');
+      // Try again after a short delay
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          _scrollToHighlightedGoal();
+        }
+      });
+      return;
+    }
+
+    print('📋 Total goals: ${_goals.length}');
+
+    // Check if the highlighted goal key has a context
+    if (_highlightedGoalKey.currentContext != null) {
+      print('✅ Found highlighted goal context, scrolling to it');
+
+      // Use a delay to ensure the UI is fully built
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          // Use Scrollable.ensureVisible to scroll to the goal card
+          Scrollable.ensureVisible(
+            _highlightedGoalKey.currentContext!,
+            duration: const Duration(milliseconds: 500),
+            alignment: 0.0, // Align to the top of the viewport
+            curve: Curves.easeInOut,
+          );
+          print('✅ Scrolled to highlighted goal');
+        }
+      });
+    } else {
+      print('❌ Highlighted goal context not found, will retry in 500ms');
+      // Try again after a short delay
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          _scrollToHighlightedGoal();
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
     _goalController.dispose();
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -59,37 +128,73 @@ class _GoalPageState extends State<GoalPage> {
   }
 
   Future<void> _loadGoals() async {
+    print('📥 Loading goals...');
+    if (widget.highlightedGoalId != null) {
+      print('🎯 Will highlight goal ID: ${widget.highlightedGoalId} after loading');
+    }
+
     setState(() {
       _isLoading = true;
     });
+
     try {
       final goals = await GoalService.fetchGoals();
-      setState(() {
-        _goals.clear();
-        _goals.addAll(goals);
-        _filteredGoals.clear();
-        _filteredGoals.addAll(goals);
-        _goals.sort((a, b) => b.createdAt.compareTo(a.createdAt)); // Sort by createdAt descending
-        _isLoading = false;
-      });
+      print('✅ Successfully loaded ${goals.length} goals');
+
+      // Check if the highlighted goal exists in the loaded goals
+      if (widget.highlightedGoalId != null) {
+        bool found = false;
+        for (var goal in goals) {
+          if (goal.id == widget.highlightedGoalId) {
+            found = true;
+            print('✅ Highlighted goal found in loaded goals: ${goal.title} (ID: ${goal.id})');
+            break;
+          }
+        }
+        if (!found) {
+          print('⚠️ Highlighted goal with ID ${widget.highlightedGoalId} not found in loaded goals');
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _goals.clear();
+          _goals.addAll(goals);
+          _filteredGoals.clear();
+          _filteredGoals.addAll(goals);
+          _goals.sort((a, b) => b.createdAt.compareTo(a.createdAt)); // Sort by createdAt descending
+          _isLoading = false;
+        });
+      }
+
       _filterGoals();
+
+      // If there's a highlighted goal, scroll to it after a delay
+      if (widget.highlightedGoalId != null) {
+        print('🔍 Will attempt to scroll to highlighted goal after a delay');
+        // Use a delay to ensure the UI is fully rendered
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            print('⏱️ Delay complete, now scrolling to highlighted goal');
+            _scrollToHighlightedGoal();
+          }
+        });
+      }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Error'),
-          content: Text('Failed to load goals: $e'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
+      print('❌ Error loading goals: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load goals: $e'),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -259,6 +364,36 @@ class _GoalPageState extends State<GoalPage> {
         ),
       ),
     );
+  }
+
+  // Method to build goal cards - can be overridden by subclasses
+  List<Widget> buildGoalCards(List<Goal> goals) {
+    return goals.map((goal) {
+      final bool shouldHighlight = widget.highlightedGoalId == goal.id;
+
+      if (shouldHighlight) {
+        // Use the highlighted goal card for the highlighted goal with the global key
+        print('🔑 Adding key to highlighted goal card: ${goal.title} (ID: ${goal.id})');
+        return Container(
+          key: _highlightedGoalKey,
+          child: HighlightedGoalCard(
+            goal: goal,
+            onToggleCompletion: () => _handleToggleCompletion(goal),
+            onEdit: () => _handleEditGoal(_goals.indexOf(goal)),
+            onDelete: () => _handleDeleteGoal(_goals.indexOf(goal)),
+            shouldHighlight: true,
+          ),
+        );
+      } else {
+        // Use the regular goal card for other goals
+        return GoalCard(
+          goal: goal,
+          onToggleCompletion: () => _handleToggleCompletion(goal),
+          onEdit: () => _handleEditGoal(_goals.indexOf(goal)),
+          onDelete: () => _handleDeleteGoal(_goals.indexOf(goal)),
+        );
+      }
+    }).toList();
   }
 
   // New method to show the Add Goal dialog using the same inputs as before.
@@ -644,6 +779,9 @@ class _GoalPageState extends State<GoalPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Debug print to verify the highlighted goal ID
+    print('🏁 GoalPage build called with highlightedGoalId: ${widget.highlightedGoalId}');
+
     // Make sure we have access to the NotificationProvider
     // This will ensure it's available in the widget tree
     Provider.of<NotificationProvider>(context, listen: false);
@@ -738,6 +876,7 @@ class _GoalPageState extends State<GoalPage> {
                     child: Padding(
                       padding: const EdgeInsets.all(24.0),
                       child: SingleChildScrollView(
+                        controller: _scrollController,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -779,30 +918,12 @@ class _GoalPageState extends State<GoalPage> {
                               ),
                             if (_activeGoals.isNotEmpty) ...[
                               _buildSectionHeader('Active Goals 🎯'),
-                              ..._activeGoals.map(
-                                (goal) => GoalCard(
-                                  goal: goal,
-                                  onToggleCompletion: () {
-                                    _handleToggleCompletion(goal);
-                                  },
-                                  onEdit: () => _handleEditGoal(_goals.indexOf(goal)),
-                                  onDelete: () => _handleDeleteGoal(_goals.indexOf(goal)),
-                                ),
-                              ),
+                              ...buildGoalCards(_activeGoals),
                               const SizedBox(height: 24),
                             ],
                             if (_completedGoals.isNotEmpty) ...[
                               _buildSectionHeader('Completed Goals ✅'),
-                              ..._completedGoals.map(
-                                (goal) => GoalCard(
-                                  goal: goal,
-                                  onToggleCompletion: () {
-                                    _handleToggleCompletion(goal);
-                                  },
-                                  onEdit: () => _handleEditGoal(_goals.indexOf(goal)),
-                                  onDelete: () => _handleDeleteGoal(_goals.indexOf(goal)),
-                                ),
-                              ),
+                              ...buildGoalCards(_completedGoals),
                             ],
                           ],
                         ),

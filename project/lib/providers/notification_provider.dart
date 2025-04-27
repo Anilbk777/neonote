@@ -187,20 +187,48 @@ class NotificationProvider extends ChangeNotifier {
   }
 
   // Mark a notification as read
-  Future<void> markAsRead(int notificationId) async {
+  Future<bool> markAsRead(int notificationId) async {
+    print('🔄 NotificationProvider: Marking notification #$notificationId as read');
+
+    // First try to update on the server
+    bool serverUpdateSuccess = false;
+    try {
+      await NotificationService.markAsRead(notificationId);
+      print('✅ NotificationProvider: Notification #$notificationId marked as read on server');
+      serverUpdateSuccess = true;
+    } catch (e) {
+      print('❌ NotificationProvider: Failed to mark notification as read on server: $e');
+      // We'll still update locally even if server update fails
+    }
+
+    // Then update locally regardless of server success
     final index = _notifications.indexWhere((notification) => notification.id == notificationId);
     if (index != -1) {
+      // Update the notification in memory
       _notifications[index] = _notifications[index].copyWith(isRead: true);
+
+      // Save to local storage immediately
       await _saveNotifications();
+
+      // Notify listeners to update UI
       notifyListeners();
 
-      // Update on the server
-      try {
-        await NotificationService.markAsRead(notificationId);
-      } catch (e) {
-        print('Failed to mark notification as read on server: $e');
-        // Continue with local update
+      print('✅ NotificationProvider: Notification #$notificationId marked as read locally');
+
+      // If server update failed, try to refresh from server to ensure consistency
+      if (!serverUpdateSuccess) {
+        // Try to refresh notifications from server after a short delay
+        Future.delayed(const Duration(milliseconds: 500), () {
+          initialize().catchError((error) {
+            print('❌ Error refreshing notifications after failed server update: $error');
+          });
+        });
       }
+
+      return true;
+    } else {
+      print('⚠️ NotificationProvider: Notification #$notificationId not found');
+      return false;
     }
   }
 
