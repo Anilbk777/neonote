@@ -128,7 +128,15 @@ class _NotificationPageState extends State<NotificationPage> {
                           IconButton(
                             icon: const Icon(Icons.check_circle, color: Colors.white),
                             onPressed: notifications.isEmpty || _isLoading
-                                ? null
+                                ? () {
+                                    // Show message when there are no notifications to mark as read
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('No notifications to mark as read'),
+                                        duration: Duration(seconds: 2),
+                                      ),
+                                    );
+                                  }
                                 : () {
                                     notificationProvider.markAllAsRead();
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -143,7 +151,15 @@ class _NotificationPageState extends State<NotificationPage> {
                           IconButton(
                             icon: const Icon(Icons.delete, color: Colors.white),
                             onPressed: notifications.isEmpty || _isLoading
-                                ? null
+                                ? () {
+                                    // Show message when there are no notifications to delete
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('No notifications to delete'),
+                                        duration: Duration(seconds: 2),
+                                      ),
+                                    );
+                                  }
                                 : () {
                                     _showDeleteAllConfirmationDialog(context);
                                   },
