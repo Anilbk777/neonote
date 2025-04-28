@@ -5,7 +5,7 @@ from goals.models import Goal
 
 class Notification(models.Model):
     """
-    Model for storing user notifications, particularly for goal reminders.
+    Model for storing user notifications, particularly for goal reminders and task reminders.
     """
     NOTIFICATION_TYPES = [
         ('goal_reminder', 'Goal Reminder'),
@@ -21,33 +21,33 @@ class Notification(models.Model):
     due_date_time = models.DateTimeField(null=True, blank=True)
     is_read = models.BooleanField(default=False)
     source_id = models.IntegerField(null=True, blank=True)  # ID of the related item (goal, task, etc.)
-    
+
     class Meta:
         ordering = ['-created_at']
-        
+
     def __str__(self):
         return f"{self.title} - {self.user.email}"
-    
+
     @property
     def is_past_due(self):
         """Check if the notification is past due"""
         if self.due_date_time:
             return self.due_date_time < timezone.now()
         return False
-    
+
     @classmethod
     def create_goal_reminder(cls, goal):
         """Create a notification for a goal reminder"""
         if not goal.has_reminder or not goal.reminder_date_time:
             return None
-            
+
         # Check if a notification for this goal already exists
         existing = cls.objects.filter(
             user=goal.user,
             notification_type='goal_reminder',
             source_id=goal.id
         ).first()
-        
+
         if existing:
             # Update existing notification
             existing.title = f"Goal Reminder: {goal.title}"
@@ -66,11 +66,57 @@ class Notification(models.Model):
                 due_date_time=goal.reminder_date_time,
                 source_id=goal.id
             )
-    
+
     @classmethod
     def remove_goal_reminder(cls, goal_id):
         """Remove notifications for a goal"""
         cls.objects.filter(
             notification_type='goal_reminder',
             source_id=goal_id
+        ).delete()
+
+    @classmethod
+    def create_task_reminder(cls, task):
+        """Create a notification for a task reminder"""
+        # Import Task model here to avoid circular import
+        from task.models import Task
+
+        if not isinstance(task, Task):
+            return None
+
+        if not task.has_reminder or not task.reminder_date_time:
+            return None
+
+        # Check if a notification for this task already exists
+        existing = cls.objects.filter(
+            user=task.user,
+            notification_type='task_due',
+            source_id=task.id
+        ).first()
+
+        if existing:
+            # Update existing notification
+            existing.title = f"Task Reminder: {task.title}"
+            existing.message = f"Reminder for your task: {task.title}"
+            existing.due_date_time = task.reminder_date_time
+            existing.is_read = False
+            existing.save()
+            return existing
+        else:
+            # Create new notification
+            return cls.objects.create(
+                user=task.user,
+                title=f"Task Reminder: {task.title}",
+                message=f"Reminder for your task: {task.title}",
+                notification_type='task_due',
+                due_date_time=task.reminder_date_time,
+                source_id=task.id
+            )
+
+    @classmethod
+    def remove_task_reminder(cls, task_id):
+        """Remove notifications for a task"""
+        cls.objects.filter(
+            notification_type='task_due',
+            source_id=task_id
         ).delete()

@@ -5,6 +5,7 @@ import 'package:project/models/notification_model.dart';
 import 'package:project/services/local_storage.dart';
 import 'package:provider/provider.dart';
 import 'package:project/personalScreen/goal.dart';
+import 'package:project/personalScreen/tasklist.dart';
 
 class NotificationPage extends StatefulWidget {
   const NotificationPage({super.key});
@@ -720,14 +721,14 @@ class _NotificationPageState extends State<NotificationPage> {
   void _handleNotificationTap(BuildContext context, NotificationModel notification) {
     // print('👆 User tapped on notification #${notification.id}');
 
+    // Mark notification as read
+    final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+    notificationProvider.markAsRead(notification.id);
+
     // Check if it's a goal notification and has a source ID
     if (notification.type == NotificationType.goalReminder && notification.sourceId != null) {
       final int goalId = notification.sourceId!;
       // print('🎯 Found goal ID: $goalId');
-
-      // Mark notification as read
-      final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
-      notificationProvider.markAsRead(notification.id);
 
       // Navigate to the goal page with the highlighted goal ID
       // print('🚀 Navigating to goal page with highlighted goal ID: $goalId');
@@ -744,6 +745,30 @@ class _NotificationPageState extends State<NotificationPage> {
         // Refresh notifications when returning from the goal page
         if (mounted) {
           // print('🔄 Refreshing notifications after returning from goal page');
+          _refreshNotifications();
+        }
+      });
+    }
+    // Check if it's a task notification and has a source ID
+    else if (notification.type == NotificationType.taskDue && notification.sourceId != null) {
+      final int taskId = notification.sourceId!;
+      // print('📋 Found task ID: $taskId');
+
+      // Navigate to the task list page with the highlighted task ID
+      // print('🚀 Navigating to task list page with highlighted task ID: $taskId');
+
+      // Use a simple navigation approach with .then() to refresh after returning
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TaskScreen(
+            highlightedTaskId: taskId,
+          ),
+        ),
+      ).then((_) {
+        // Refresh notifications when returning from the task list page
+        if (mounted) {
+          // print('🔄 Refreshing notifications after returning from task list page');
           _refreshNotifications();
         }
       });

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:project/models/notification_model.dart';
 import 'package:project/models/goals_model.dart';
+import 'package:project/models/task_model.dart';
 import 'package:project/services/notification_service.dart';
 import 'package:project/services/local_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -311,6 +312,87 @@ class NotificationProvider extends ChangeNotifier {
     notifyListeners();
 
     // The backend will automatically remove the notification when the goal is updated/deleted
+    // No need to make an additional API call here
+  }
+
+  // Add a task reminder notification
+  Future<void> addTaskReminderNotification(TaskModel task) async {
+    // Use the getter which always returns a boolean
+    if (!task.hasReminder || task.reminderDateTime == null) {
+      return;
+    }
+
+    // Ensure we're using the exact same DateTime object from the task
+    final reminderDateTime = task.reminderDateTime;
+
+    // Debug print to check the actual reminder time
+    final now = DateTime.now();
+
+    // Check if the reminder time is in UTC (has 'Z' suffix)
+    bool isUtc = reminderDateTime!.toString().endsWith('Z');
+
+    // If the time is in UTC, convert it to local time for comparison
+    DateTime localReminderDateTime = reminderDateTime;
+    if (isUtc) {
+      // Convert UTC time to local time
+      localReminderDateTime = reminderDateTime.toLocal();
+    }
+
+    // Check if a notification for this task already exists
+    final existingIndex = _notifications.indexWhere(
+      (notification) =>
+        notification.type == NotificationType.taskDue &&
+        notification.sourceId == task.id
+    );
+
+    if (existingIndex != -1) {
+      // Update existing notification
+      _notifications[existingIndex] = _notifications[existingIndex].copyWith(
+        title: 'Task Reminder: ${task.title}',
+        message: 'Reminder for your task: ${task.title}',
+        dueDateTime: reminderDateTime,
+        isRead: false,
+      );
+    } else {
+      // Create new notification
+      final notification = NotificationModel(
+        id: _nextId++,
+        title: 'Task Reminder: ${task.title}',
+        message: 'Reminder for your task: ${task.title}',
+        createdAt: DateTime.now(),
+        dueDateTime: reminderDateTime,
+        type: NotificationType.taskDue,
+        sourceId: task.id,
+      );
+      _notifications.add(notification);
+    }
+
+    // Sort notifications
+    _sortNotifications();
+
+    await _saveNotifications();
+
+    // Check if the new notification is already due
+    _checkForDueNotifications();
+
+    // Always notify listeners to update the UI
+    notifyListeners();
+
+    // The backend will automatically create/update the notification when the task is saved
+    // No need to make an additional API call here
+  }
+
+  // Remove a task reminder notification
+  Future<void> removeTaskReminderNotification(int taskId) async {
+    _notifications.removeWhere(
+      (notification) =>
+        notification.type == NotificationType.taskDue &&
+        notification.sourceId == taskId
+    );
+    await _saveNotifications();
+    notifyListeners();
+
+    // The backend will automatically remove the notification when the task is updated/deleted
     // No need to make an additional API call here
   }
 

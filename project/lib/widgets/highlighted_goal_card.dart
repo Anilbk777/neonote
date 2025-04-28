@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart'; // For SystemMouseCursors
 import 'package:intl/intl.dart';
 import 'package:project/models/goals_model.dart';
+import 'package:project/personalScreen/goal_task_detail.dart';
 
 class HighlightedGoalCard extends StatefulWidget {
   final Goal goal;
@@ -118,104 +120,118 @@ class _HighlightedGoalCardState extends State<HighlightedGoalCard> with SingleTi
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
-        children: [
-          ListTile(
-            contentPadding: const EdgeInsets.all(16),
-            title: Text(
-              widget.goal.title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click, // Show hand cursor on hover
+        child: GestureDetector(
+          onTap: () {
+            // Navigate to the task list when the goal card is clicked
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => GoalDetailScreen(goal: widget.goal),
               ),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        '${DateFormat.yMMMd().format(widget.goal.startDate)} - ${DateFormat.yMMMd().format(widget.goal.completionDate)}',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                    ),
-                  ],
+            );
+          },
+          child: Column(
+            children: [
+              ListTile(
+                contentPadding: const EdgeInsets.all(16),
+                title: Text(
+                  widget.goal.title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                if ((widget.goal.hasReminder) && widget.goal.reminderDateTime != null) ...[
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.notifications_active, size: 16, color: Colors.blue[600]),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          'Reminder: ${DateFormat('MMM d, yyyy - h:mm a').format(widget.goal.reminderDateTime!)}',
-                          style: TextStyle(
-                            color: Colors.blue[600],
-                            fontWeight: FontWeight.w500,
-                            fontSize: 12,
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            '${DateFormat.yMMMd().format(widget.goal.startDate)} - ${DateFormat.yMMMd().format(widget.goal.completionDate)}',
+                            style: TextStyle(color: Colors.grey[600]),
                           ),
                         ),
+                      ],
+                    ),
+                    if ((widget.goal.hasReminder) && widget.goal.reminderDateTime != null) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.notifications_active, size: 16, color: Colors.blue[600]),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Reminder: ${DateFormat('MMM d, yyyy - h:mm a').format(widget.goal.reminderDateTime!)}',
+                              style: TextStyle(
+                                color: Colors.blue[600],
+                                fontWeight: FontWeight.w500,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
-                  ),
-                ],
-              ],
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Transform.scale(
-                  scale: 1.2,
-                  child: Checkbox(
-                    value: widget.goal.isCompleted,
-                    onChanged: (_) => widget.onToggleCompletion(),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    activeColor: const Color(0xFF255DE1),
-                  ),
+                  ],
                 ),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert),
-                  onSelected: (choice) {
-                    if (choice == 'edit') {
-                      widget.onEdit();
-                    } else if (choice == 'delete') {
-                      widget.onDelete();
-                    }
-                  },
-                  itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                    const PopupMenuItem<String>(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit, size: 20),
-                          SizedBox(width: 8),
-                          Text('Edit'),
-                        ],
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Transform.scale(
+                      scale: 1.2,
+                      child: Checkbox(
+                        value: widget.goal.isCompleted,
+                        onChanged: (_) => widget.onToggleCompletion(),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        activeColor: const Color(0xFF255DE1),
                       ),
                     ),
-                    const PopupMenuItem<String>(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete, size: 20, color: Colors.red),
-                          SizedBox(width: 8),
-                          Text('Delete', style: TextStyle(color: Colors.red)),
-                        ],
-                      ),
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert),
+                      onSelected: (choice) {
+                        if (choice == 'edit') {
+                          widget.onEdit();
+                        } else if (choice == 'delete') {
+                          widget.onDelete();
+                        }
+                      },
+                      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                        const PopupMenuItem<String>(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              Icon(Icons.edit, size: 20),
+                              SizedBox(width: 8),
+                              Text('Edit'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete, size: 20, color: Colors.red),
+                              SizedBox(width: 8),
+                              Text('Delete', style: TextStyle(color: Colors.red)),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

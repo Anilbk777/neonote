@@ -95,7 +95,7 @@ class _CustomScaffoldState extends State<CustomScaffold> {
                       builder: (context, notificationProvider, child) {
                         // Force rebuild when unreadCount changes
                         final unreadCount = notificationProvider.unreadCount;
-                        print('Notification count updated: $unreadCount');
+                        // print('Notification count updated: $unreadCount');
 
                         return _buildSidebarItem(
                           Icons.notifications,
