@@ -232,10 +232,14 @@ Future<void> editGoal(
                 label: 'Start Date',
                 date: newStartDate,
                 onSelect: () async {
+                  // Make sure initialDate is not before firstDate
+                  final firstDate = DateTime(2000);
+                  final initialDate = newStartDate.isBefore(firstDate) ? firstDate : newStartDate;
+
                   final pickedDate = await showDatePicker(
                     context: context,
-                    initialDate: newStartDate,
-                    firstDate: DateTime(2000),
+                    initialDate: initialDate,
+                    firstDate: firstDate,
                     lastDate: DateTime(2100),
                     builder: (context, child) => Theme(
                       data: Theme.of(context).copyWith(
@@ -262,10 +266,14 @@ Future<void> editGoal(
                 label: 'Completion Date',
                 date: newCompletionDate,
                 onSelect: () async {
+                  // Make sure initialDate is not before firstDate
+                  final firstDate = DateTime(2000);
+                  final initialDate = newCompletionDate.isBefore(firstDate) ? firstDate : newCompletionDate;
+
                   final pickedDate = await showDatePicker(
                     context: context,
-                    initialDate: newCompletionDate,
-                    firstDate: DateTime(2000),
+                    initialDate: initialDate,
+                    firstDate: firstDate,
                     lastDate: DateTime(2100),
                     builder: (context, child) => Theme(
                       data: Theme.of(context).copyWith(
@@ -358,9 +366,19 @@ Future<void> editGoal(
                           TextButton(
                             onPressed: () async {
                               final DateTime now = DateTime.now();
+
+                              // Ensure initialDate is not before firstDate
+                              DateTime initialDate;
+                              if (newReminderDateTime != null) {
+                                // If reminder date is in the past, use current date
+                                initialDate = newReminderDateTime!.isBefore(now) ? now : newReminderDateTime!;
+                              } else {
+                                initialDate = now;
+                              }
+
                               DateTime? pickedDate = await showDatePicker(
                                 context: context,
-                                initialDate: newReminderDateTime ?? now,
+                                initialDate: initialDate,
                                 firstDate: now,
                                 lastDate: DateTime(2100),
                               );

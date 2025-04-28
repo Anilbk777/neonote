@@ -90,13 +90,18 @@ class _CustomScaffoldState extends State<CustomScaffold> {
                     ),
                     const Divider(),
                     _buildSidebarItem(Icons.home, 'Home', '/dashboard'),
+                    // Use Consumer with listen: true to ensure updates
                     Consumer<NotificationProvider>(
                       builder: (context, notificationProvider, child) {
+                        // Force rebuild when unreadCount changes
+                        final unreadCount = notificationProvider.unreadCount;
+                        print('Notification count updated: $unreadCount');
+
                         return _buildSidebarItem(
                           Icons.notifications,
                           'Notification',
                           NotificationPage(),
-                          badgeCount: notificationProvider.unreadCount,
+                          badgeCount: unreadCount,
                         );
                       },
                     ),

@@ -5,6 +5,7 @@ import 'package:project/services/notification_service.dart';
 import 'package:project/services/local_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'dart:async';
 
 // Import the formatTo12Hour function from notification_model.dart
 import 'package:project/models/notification_model.dart' show formatTo12Hour;
@@ -12,11 +13,130 @@ import 'package:project/models/notification_model.dart' show formatTo12Hour;
 class NotificationProvider extends ChangeNotifier {
   List<NotificationModel> _notifications = [];
   int _nextId = 1;
+  Timer? _notificationTimer;
+
+  // Constructor to set up the timer
+  NotificationProvider() {
+    // Check for due notifications immediately when provider is created
+    // This ensures the badge count is correct as soon as the app starts
+    Future.microtask(() {
+      _checkForDueNotifications();
+    });
+
+    // Set up a timer to check for new notifications every 5 seconds
+    // Using a shorter interval for more responsive updates
+    _notificationTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      // Check if any notifications have become due and update the UI
+      _checkForDueNotifications();
+    });
+  }
+
+  // Method to check if any notifications have become due
+  void _checkForDueNotifications() {
+    // Get the current time
+    final now = DateTime.now();
+
+    // Check if any notifications have become due since the last check
+    bool hasNewDueNotifications = false;
+
+    for (var notification in _notifications) {
+      // Skip notifications that are already read
+      if (notification.isRead) continue;
+
+      // Skip notifications without a due date
+      if (notification.dueDateTime == null) continue;
+
+      // Check if this notification is now due
+      final dueDateTime = notification.dueDateTime!;
+
+      // Calculate if the notification is due now
+      bool isDueNow = false;
+
+      // If it's a past year
+      if (dueDateTime.year < now.year) {
+        isDueNow = true;
+      }
+      // If it's the same year but past month
+      else if (dueDateTime.year == now.year && dueDateTime.month < now.month) {
+        isDueNow = true;
+      }
+      // If it's the same year and month but past day
+      else if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day < now.day) {
+        isDueNow = true;
+      }
+      // If it's the same day, compare hour and minute
+      else if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day == now.day) {
+        // Calculate total minutes for easier comparison
+        int dueMinutes = (dueDateTime.hour * 60) + dueDateTime.minute;
+        int nowMinutes = (now.hour * 60) + now.minute;
+
+        // Check if due time is now or in the past
+        isDueNow = dueMinutes <= nowMinutes;
+      }
+
+      if (isDueNow) {
+        hasNewDueNotifications = true;
+        break; // We found at least one due notification, no need to check more
+      }
+    }
+
+    // If we found new due notifications, notify listeners to update the UI
+    if (hasNewDueNotifications) {
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    // Cancel the timer when the provider is disposed
+    _notificationTimer?.cancel();
+    super.dispose();
+  }
 
   List<NotificationModel> get notifications => _notifications;
 
   // Get unread notifications count
-  int get unreadCount => _notifications.where((notification) => !notification.isRead).length;
+  int get unreadCount {
+    final now = DateTime.now();
+    return _notifications.where((notification) {
+      // Only count unread notifications
+      if (notification.isRead) return false;
+
+      // If notification has no due date, always count it
+      if (notification.dueDateTime == null) return true;
+
+      // Check if notification is due now or in the past
+      final dueDateTime = notification.dueDateTime!;
+
+      // Compare year, month, day, hour, and minute directly
+      bool isPastOrDueNow = false;
+
+      // If it's a past year
+      if (dueDateTime.year < now.year) {
+        isPastOrDueNow = true;
+      }
+      // If it's the same year but past month
+      else if (dueDateTime.year == now.year && dueDateTime.month < now.month) {
+        isPastOrDueNow = true;
+      }
+      // If it's the same year and month but past day
+      else if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day < now.day) {
+        isPastOrDueNow = true;
+      }
+      // If it's the same day, compare hour and minute
+      else if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day == now.day) {
+        // Calculate total minutes for easier comparison
+        int dueMinutes = (dueDateTime.hour * 60) + dueDateTime.minute;
+        int nowMinutes = (now.hour * 60) + now.minute;
+
+        // Show if due time is earlier than or equal to current time
+        isPastOrDueNow = dueMinutes <= nowMinutes;
+      }
+
+      // Only count notifications that are due now or in the past
+      return isPastOrDueNow;
+    }).length;
+  }
 
   // Initialize the provider
   Future<void> initialize() async {
@@ -83,6 +203,9 @@ class NotificationProvider extends ChangeNotifier {
         // print('📋 This could be normal if the user has no notifications, or it could indicate a problem.');
         // print('📋 Check the backend to verify if this user should have notifications.');
       }
+
+      // Check for due notifications immediately after loading
+      _checkForDueNotifications();
 
       // Notify listeners
       notifyListeners();
@@ -166,6 +289,11 @@ class NotificationProvider extends ChangeNotifier {
     _sortNotifications();
 
     await _saveNotifications();
+
+    // Check if the new notification is already due
+    _checkForDueNotifications();
+
+    // Always notify listeners to update the UI
     notifyListeners();
 
     // The backend will automatically create/update the notification when the goal is saved
@@ -210,6 +338,10 @@ class NotificationProvider extends ChangeNotifier {
       // Save to local storage immediately
       await _saveNotifications();
 
+      // Check for due notifications after marking as read
+      // This ensures the badge count is updated immediately
+      _checkForDueNotifications();
+
       // Notify listeners to update UI
       notifyListeners();
 
@@ -236,6 +368,11 @@ class NotificationProvider extends ChangeNotifier {
   Future<void> markAllAsRead() async {
     _notifications = _notifications.map((notification) => notification.copyWith(isRead: true)).toList();
     await _saveNotifications();
+
+    // Check for due notifications after marking all as read
+    // This ensures the badge count is updated immediately
+    _checkForDueNotifications();
+
     notifyListeners();
 
     // Update on the server
@@ -251,6 +388,11 @@ class NotificationProvider extends ChangeNotifier {
   Future<void> deleteNotification(int notificationId) async {
     _notifications.removeWhere((notification) => notification.id == notificationId);
     await _saveNotifications();
+
+    // Check for due notifications after deleting
+    // This ensures the badge count is updated immediately
+    _checkForDueNotifications();
+
     notifyListeners();
 
     // Delete on the server
@@ -266,6 +408,11 @@ class NotificationProvider extends ChangeNotifier {
   Future<void> deleteAllNotifications() async {
     _notifications.clear();
     await _saveNotifications();
+
+    // Check for due notifications after deleting all
+    // This ensures the badge count is updated immediately
+    _checkForDueNotifications();
+
     notifyListeners();
 
     // Delete on the server

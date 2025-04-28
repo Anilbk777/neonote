@@ -545,10 +545,17 @@ class _GoalPageState extends State<GoalPage> {
                               IconButton(
                                 icon: const Icon(Icons.calendar_today),
                                 onPressed: () async {
+                                  // Make sure initialDate is not before firstDate
+                                  final firstDate = DateTime(2000);
+                                  final now = DateTime.now();
+                                  final initialDate = dialogStartDate != null
+                                      ? (dialogStartDate!.isBefore(firstDate) ? firstDate : dialogStartDate!)
+                                      : now;
+
                                   DateTime? pickedDate = await showDatePicker(
                                     context: context,
-                                    initialDate: dialogStartDate ?? DateTime.now(),
-                                    firstDate: DateTime(2000),
+                                    initialDate: initialDate,
+                                    firstDate: firstDate,
                                     lastDate: DateTime(2100),
                                   );
                                   if (pickedDate != null) {
@@ -573,10 +580,17 @@ class _GoalPageState extends State<GoalPage> {
                               IconButton(
                                 icon: const Icon(Icons.calendar_today),
                                 onPressed: () async {
+                                  // Make sure initialDate is not before firstDate
+                                  final firstDate = DateTime(2000);
+                                  final now = DateTime.now();
+                                  final initialDate = dialogCompletionDate != null
+                                      ? (dialogCompletionDate!.isBefore(firstDate) ? firstDate : dialogCompletionDate!)
+                                      : now;
+
                                   DateTime? pickedDate = await showDatePicker(
                                     context: context,
-                                    initialDate: dialogCompletionDate ?? DateTime.now(),
-                                    firstDate: DateTime(2000),
+                                    initialDate: initialDate,
+                                    firstDate: firstDate,
                                     lastDate: DateTime(2100),
                                   );
                                   if (pickedDate != null) {
@@ -656,9 +670,18 @@ class _GoalPageState extends State<GoalPage> {
                                           final DateTime now = DateTime.now();
 
                                           // Show date picker with current date as minimum
+                                          // Ensure initialDate is not before firstDate
+                                          DateTime initialDate;
+                                          if (dialogReminderDateTime != null) {
+                                            // If reminder date is in the past, use current date
+                                            initialDate = dialogReminderDateTime!.isBefore(now) ? now : dialogReminderDateTime!;
+                                          } else {
+                                            initialDate = now;
+                                          }
+
                                           DateTime? pickedDate = await showDatePicker(
                                             context: context,
-                                            initialDate: dialogReminderDateTime ?? now,
+                                            initialDate: initialDate,
                                             firstDate: now, // Can't pick dates in the past
                                             lastDate: DateTime(2100),
                                           );
