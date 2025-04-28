@@ -126,8 +126,11 @@ class _CustomScaffoldState extends State<CustomScaffold> {
                       _buildSidebarItem(_getIconForPage(page), page, _getPageByName(page)),
                     Consumer<PagesProvider>(
                       builder: (context, pagesProvider, child) {
+                        // Filter to only show top-level pages (pages without a parent)
+                        final topLevelPages = pagesProvider.getTopLevelPages();
+
                         return Column(
-                          children: pagesProvider.pages.map((pageModel) {
+                          children: topLevelPages.map((pageModel) {
                             return _CustomPageItem(
                               pageModel: pageModel,
                               isSelected: widget.selectedPage == pageModel.title,
@@ -233,8 +236,9 @@ class _CustomScaffoldState extends State<CustomScaffold> {
             ElevatedButton(
               onPressed: () {
                 if (controller.text.isNotEmpty) {
+                  // Create a top-level page (no parentId)
                   Provider.of<PagesProvider>(context, listen: false)
-                      .createPage(controller.text, "")
+                      .createPage(controller.text, "", parentId: null)
                       .then((newPage) {
                     Navigator.of(dialogContext).pop();
                     Navigator.push(
