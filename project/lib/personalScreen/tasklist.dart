@@ -14,8 +14,9 @@ import 'package:project/models/notification_model.dart';
 
 class TaskScreen extends StatefulWidget {
   final int? highlightedTaskId;
+  final int? highlightedGoalId;
 
-  const TaskScreen({Key? key, this.highlightedTaskId}) : super(key: key);
+  const TaskScreen({Key? key, this.highlightedTaskId, this.highlightedGoalId}) : super(key: key);
 
   @override
   _TaskScreenState createState() => _TaskScreenState();
@@ -37,23 +38,28 @@ class _TaskScreenState extends State<TaskScreen> {
   List<TaskModel> _filteredCompletedTasks = [];
   Map<String, List<TaskModel>> _allTasks = {"active": [], "completed": []};
 
-  // Variable to track the highlighted task
+  // Variables to track the highlighted task and goal
   int? _highlightedTaskId;
-  // Animation controller for the highlighted task
+  int? _highlightedGoalId;
+  // Animation controller for the highlighted elements
   bool _isHighlighting = false;
 
   // Goals state variables.
   List<Goal> _allGoals = [];
   List<Goal> _filteredGoals = [];
 
+  // Scroll controller for goals
+  final ScrollController _goalsScrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
-    // Set the highlighted task ID from the widget parameter
+    // Set the highlighted IDs from the widget parameters
     _highlightedTaskId = widget.highlightedTaskId;
+    _highlightedGoalId = widget.highlightedGoalId;
 
-    // If a task is highlighted, set the highlighting flag
-    if (_highlightedTaskId != null) {
+    // If a task or goal is highlighted, set the highlighting flag
+    if (_highlightedTaskId != null || _highlightedGoalId != null) {
       _isHighlighting = true;
 
       // Schedule to turn off highlighting after 3 seconds
@@ -70,13 +76,18 @@ class _TaskScreenState extends State<TaskScreen> {
     _loadGoals();
     _searchController.addListener(_onSearchChanged);
 
-    // If a task is highlighted, scroll to it after tasks are loaded
-    if (_highlightedTaskId != null) {
-      // Wait for the tasks to load and the UI to build
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    // Wait for the UI to build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // If a task is highlighted, scroll to it
+      if (_highlightedTaskId != null) {
         _scrollToHighlightedTask();
-      });
-    }
+      }
+
+      // If a goal is highlighted, scroll to it
+      if (_highlightedGoalId != null) {
+        _scrollToHighlightedGoal();
+      }
+    });
   }
 
   // Method to scroll to the highlighted task
@@ -125,6 +136,26 @@ class _TaskScreenState extends State<TaskScreen> {
     }
   }
 
+  // Method to scroll to the highlighted goal
+  void _scrollToHighlightedGoal() {
+    if (_highlightedGoalId == null || _filteredGoals.isEmpty) return;
+
+    // Find the index of the highlighted goal
+    int goalIndex = _filteredGoals.indexWhere((goal) => goal.id == _highlightedGoalId);
+
+    if (goalIndex != -1) {
+      // Calculate the position (each goal card is approximately 100 pixels wide plus margin)
+      double position = goalIndex * 120.0;
+
+      // Scroll to the position with animation
+      _goalsScrollController.animateTo(
+        position,
+        duration: Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
   @override
   void dispose() {
     _searchController.removeListener(_onSearchChanged);
@@ -132,6 +163,7 @@ class _TaskScreenState extends State<TaskScreen> {
     _scrollController.dispose();
     _activeTasksScrollController.dispose();
     _completedTasksScrollController.dispose();
+    _goalsScrollController.dispose();
 
     super.dispose();
   }
@@ -163,6 +195,16 @@ class _TaskScreenState extends State<TaskScreen> {
         _allGoals = goals;
         _filteredGoals = goals;
       });
+
+      // If a goal is highlighted, try to scroll to it after goals are loaded
+      if (_highlightedGoalId != null) {
+        // Wait for the UI to update with the new goals
+        Future.delayed(Duration(milliseconds: 300), () {
+          if (mounted) {
+            _scrollToHighlightedGoal();
+          }
+        });
+      }
     });
   }
 
@@ -1036,6 +1078,9 @@ class _TaskScreenState extends State<TaskScreen> {
 
 
  Widget _buildGoalCard(Goal goal) {
+    // Check if this goal should be highlighted
+    bool shouldHighlight = _highlightedGoalId == goal.id && _isHighlighting;
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -1048,12 +1093,22 @@ class _TaskScreenState extends State<TaskScreen> {
       child: Container(
         margin: const EdgeInsets.only(right: 8),
         child: Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          elevation: shouldHighlight ? 4 : 1,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: shouldHighlight
+                ? BorderSide(color: Colors.red, width: 2)
+                : BorderSide.none,
+          ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
             child: Text(
               goal.title,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: shouldHighlight ? FontWeight.bold : FontWeight.w500,
+                color: shouldHighlight ? Colors.red : Colors.black,
+              ),
             ),
           ),
         ),
@@ -1083,10 +1138,10 @@ class _TaskScreenState extends State<TaskScreen> {
           SizedBox(
             height: 70,
             child: Scrollbar(
-              controller: _scrollController,
+              controller: _goalsScrollController,
               thumbVisibility: true,
               child: ListView.builder(
-                controller: _scrollController,
+                controller: _goalsScrollController,
                 scrollDirection: Axis.horizontal,
                 itemCount: _filteredGoals.length,
                 itemBuilder: (context, index) {

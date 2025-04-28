@@ -766,15 +766,15 @@ class _NotificationPageState extends State<NotificationPage> {
         // Try to extract the goal ID from the notification message if available
         int? goalId;
 
-        // Simple regex to find goal ID in the message
-        final RegExp goalIdRegex = RegExp(r'goal\s+(\d+)', caseSensitive: false);
-        final match = goalIdRegex.firstMatch(notification.message);
+        // First try to extract goal ID using the new format "Goal: Title"
+        final RegExp goalTitleRegex = RegExp(r'Goal:\s+([^)]+)', caseSensitive: false);
+        final titleMatch = goalTitleRegex.firstMatch(notification.message);
 
-        if (match != null && match.groupCount >= 1) {
-          goalId = int.tryParse(match.group(1)!);
-        }
+        if (titleMatch != null && titleMatch.groupCount >= 1) {
+          // We found a goal title, now we need to find the goal ID
+          final goalTitle = titleMatch.group(1)!.trim();
+          print('Found goal title in notification: $goalTitle');
 
-        if (goalId != null) {
           // Show loading indicator
           showDialog(
             context: context,
@@ -784,26 +784,129 @@ class _NotificationPageState extends State<NotificationPage> {
             ),
           );
 
-          // Fetch the goal
-          GoalService.fetchGoalById(goalId).then((goal) {
+          // Fetch all goals to find the one with matching title
+          GoalService.fetchGoals().then((goals) {
             // Close loading indicator
             Navigator.pop(context);
 
-            // Navigate to the goal detail screen
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => GoalDetailScreen(
-                  goal: goal,
-                  highlightedTaskId: taskId,
+            // Find the goal with matching title
+            Goal? matchingGoal;
+            try {
+              matchingGoal = goals.firstWhere(
+                (goal) => goal.title.trim() == goalTitle,
+              );
+            } catch (e) {
+              // No matching goal found
+              matchingGoal = null;
+            }
+
+            if (matchingGoal != null) {
+              // We found the goal, navigate to the task list with highlighted goal
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TaskScreen(
+                    highlightedTaskId: taskId,
+                    highlightedGoalId: matchingGoal?.id,
+                  ),
                 ),
-              ),
-            ).then((_) {
-              // Refresh notifications when returning
-              if (mounted) {
-                _refreshNotifications();
+              ).then((_) {
+                // Refresh notifications when returning
+                if (mounted) {
+                  _refreshNotifications();
+                }
+              });
+            } else {
+              // Fallback to goal detail screen if we can't find the goal
+              // Try to extract goal ID using the old format
+              final RegExp goalIdRegex = RegExp(r'goal\s+(\d+)', caseSensitive: false);
+              final match = goalIdRegex.firstMatch(notification.message);
+
+              if (match != null && match.groupCount >= 1) {
+                goalId = int.tryParse(match.group(1)!);
+
+                if (goalId != null) {
+                  // Navigate to the goal detail screen
+                  // Ensure goalId is not null before calling fetchGoalById
+                  if (goalId != null) {
+                    // Convert nullable int? to non-nullable int using null assertion operator
+                    // This is safe because we've already checked that goalId is not null
+                    int nonNullableGoalId = goalId!;
+                    GoalService.fetchGoalById(nonNullableGoalId).then((goal) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => GoalDetailScreen(
+                            goal: goal,
+                            highlightedTaskId: taskId,
+                          ),
+                        ),
+                      ).then((_) {
+                        if (mounted) {
+                          _refreshNotifications();
+                        }
+                      });
+                  }).catchError((_) {
+                    // Navigate to the task list as fallback
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TaskScreen(
+                          highlightedTaskId: taskId,
+                        ),
+                      ),
+                    ).then((_) {
+                      if (mounted) {
+                        _refreshNotifications();
+                      }
+                    });
+                  });
+                  } else {
+                    // Navigate to the task list as fallback if goalId is null
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TaskScreen(
+                          highlightedTaskId: taskId,
+                        ),
+                      ),
+                    ).then((_) {
+                      if (mounted) {
+                        _refreshNotifications();
+                      }
+                    });
+                  }
+                } else {
+                  // Navigate to the task list as fallback
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TaskScreen(
+                        highlightedTaskId: taskId,
+                      ),
+                    ),
+                  ).then((_) {
+                    if (mounted) {
+                      _refreshNotifications();
+                    }
+                  });
+                }
+              } else {
+                // Navigate to the task list as fallback
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => TaskScreen(
+                      highlightedTaskId: taskId,
+                    ),
+                  ),
+                ).then((_) {
+                  if (mounted) {
+                    _refreshNotifications();
+                  }
+                });
               }
-            });
+            }
           }).catchError((error) {
             // Close loading indicator
             Navigator.pop(context);
@@ -811,7 +914,7 @@ class _NotificationPageState extends State<NotificationPage> {
             // Show error message
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Failed to load goal: $error'),
+                content: Text('Failed to load goals: $error'),
                 backgroundColor: Colors.red,
               ),
             );
@@ -825,27 +928,132 @@ class _NotificationPageState extends State<NotificationPage> {
                 ),
               ),
             ).then((_) {
-              // Refresh notifications when returning
               if (mounted) {
                 _refreshNotifications();
               }
             });
           });
         } else {
-          // If we couldn't extract the goal ID, navigate to the task list page as a fallback
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TaskScreen(
-                highlightedTaskId: taskId,
-              ),
-            ),
-          ).then((_) {
-            // Refresh notifications when returning
-            if (mounted) {
-              _refreshNotifications();
+          // Try to extract goal ID using the old format
+          final RegExp goalIdRegex = RegExp(r'goal\s+(\d+)', caseSensitive: false);
+          final match = goalIdRegex.firstMatch(notification.message);
+
+          if (match != null && match.groupCount >= 1) {
+            goalId = int.tryParse(match.group(1)!);
+
+            if (goalId != null) {
+              // Show loading indicator
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => Center(
+                  child: CircularProgressIndicator(),
+                ),
+              );
+
+              // Fetch the goal
+              // Ensure goalId is not null before calling fetchGoalById
+              if (goalId != null) {
+                // Convert nullable int? to non-nullable int using null assertion operator
+                // This is safe because we've already checked that goalId is not null
+                int nonNullableGoalId = goalId!;
+                GoalService.fetchGoalById(nonNullableGoalId).then((goal) {
+                  // Close loading indicator
+                  Navigator.pop(context);
+
+                  // Navigate to the goal detail screen
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => GoalDetailScreen(
+                        goal: goal,
+                        highlightedTaskId: taskId,
+                      ),
+                    ),
+                  ).then((_) {
+                    // Refresh notifications when returning
+                    if (mounted) {
+                      _refreshNotifications();
+                    }
+                  });
+              }).catchError((error) {
+                // Close loading indicator
+                Navigator.pop(context);
+
+                // Show error message
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Failed to load goal: $error'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+
+                // Navigate to the task list page as a fallback
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => TaskScreen(
+                      highlightedTaskId: taskId,
+                    ),
+                  ),
+                ).then((_) {
+                  // Refresh notifications when returning
+                  if (mounted) {
+                    _refreshNotifications();
+                  }
+                });
+              });
+              } else {
+                // Close loading indicator (in case it was shown)
+                Navigator.pop(context);
+
+                // Navigate to the task list page as a fallback if goalId is null
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => TaskScreen(
+                      highlightedTaskId: taskId,
+                    ),
+                  ),
+                ).then((_) {
+                  // Refresh notifications when returning
+                  if (mounted) {
+                    _refreshNotifications();
+                  }
+                });
+              }
+            } else {
+              // If we couldn't extract the goal ID, navigate to the task list page as a fallback
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TaskScreen(
+                    highlightedTaskId: taskId,
+                  ),
+                ),
+              ).then((_) {
+                // Refresh notifications when returning
+                if (mounted) {
+                  _refreshNotifications();
+                }
+              });
             }
-          });
+          } else {
+            // If we couldn't extract the goal ID, navigate to the task list page as a fallback
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => TaskScreen(
+                  highlightedTaskId: taskId,
+                ),
+              ),
+            ).then((_) {
+              // Refresh notifications when returning
+              if (mounted) {
+                _refreshNotifications();
+              }
+            });
+          }
         }
       } else {
         // Navigate to the regular task list page with the highlighted task ID
