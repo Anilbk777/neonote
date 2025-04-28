@@ -4,6 +4,7 @@ import 'package:project/models/goals_model.dart';
 import 'package:project/models/task_model.dart';
 import 'package:project/services/notification_service.dart';
 import 'package:project/services/local_storage.dart';
+import 'package:project/services/goal_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:async';
@@ -382,6 +383,100 @@ class NotificationProvider extends ChangeNotifier {
     // No need to make an additional API call here
   }
 
+  // Add a goal task reminder notification
+  Future<void> addGoalTaskReminderNotification(GoalTask task) async {
+    print("📢 addGoalTaskReminderNotification called for task ID: ${task.id}, title: ${task.title}");
+
+    // Check if task has reminder
+    if (!task.hasReminder || task.reminderDateTime == null) {
+      print("❌ Task has no reminder or reminderDateTime is null. hasReminder: ${task.hasReminder}, reminderDateTime: ${task.reminderDateTime}");
+      return;
+    }
+
+    // Ensure we're using the exact same DateTime object from the task
+    final reminderDateTime = task.reminderDateTime;
+
+    // Debug print to check the actual reminder time
+    final now = DateTime.now();
+    print("📅 Task reminder time: ${reminderDateTime.toString()}, Current time: ${now.toString()}");
+
+    // Check if the reminder time is in UTC (has 'Z' suffix)
+    bool isUtc = reminderDateTime!.toString().endsWith('Z');
+    print("🌐 Is UTC time: $isUtc");
+
+    // If the time is in UTC, convert it to local time for comparison
+    DateTime localReminderDateTime = reminderDateTime;
+    if (isUtc) {
+      // Convert UTC time to local time
+      localReminderDateTime = reminderDateTime.toLocal();
+      print("🕒 Converted to local time: ${localReminderDateTime.toString()}");
+    }
+
+    // Check if a notification for this task already exists
+    final existingIndex = _notifications.indexWhere(
+      (notification) =>
+        notification.type == NotificationType.taskDue &&
+        notification.sourceId == task.id
+    );
+
+    // Get the goal title
+    String goalTitle = "Unknown Goal";
+    try {
+      // Fetch the goal to get its title
+      final goal = await GoalService.fetchGoalById(task.goal);
+      goalTitle = goal.title;
+      print("📝 Found goal title: $goalTitle for goal ID: ${task.goal}");
+    } catch (e) {
+      print("⚠️ Could not fetch goal title: $e");
+      // Continue with unknown goal title
+    }
+
+    // Create notification title and message with goal information
+    final title = 'Goal Task Reminder: ${task.title}';
+    final message = 'Reminder for your goal task: ${task.title} (Goal: $goalTitle)';
+
+    print("📝 Creating notification with title: $title");
+
+    if (existingIndex != -1) {
+      // Update existing notification
+      print("🔄 Updating existing notification at index $existingIndex");
+      _notifications[existingIndex] = _notifications[existingIndex].copyWith(
+        title: title,
+        message: message,
+        dueDateTime: reminderDateTime,
+        isRead: false,
+      );
+    } else {
+      // Create new notification
+      print("➕ Creating new notification for goal task");
+      final notification = NotificationModel(
+        id: _nextId++,
+        title: title,
+        message: message,
+        createdAt: DateTime.now(),
+        dueDateTime: reminderDateTime,
+        type: NotificationType.taskDue,
+        sourceId: task.id,
+      );
+      _notifications.add(notification);
+      print("✅ Added new notification with ID: ${notification.id}");
+    }
+
+    // Sort notifications
+    _sortNotifications();
+
+    await _saveNotifications();
+
+    // Check if the new notification is already due
+    _checkForDueNotifications();
+
+    // Always notify listeners to update the UI
+    notifyListeners();
+
+    // The backend will automatically create/update the notification when the task is saved
+    // No need to make an additional API call here
+  }
+
   // Remove a task reminder notification
   Future<void> removeTaskReminderNotification(int taskId) async {
     _notifications.removeWhere(
@@ -394,6 +489,12 @@ class NotificationProvider extends ChangeNotifier {
 
     // The backend will automatically remove the notification when the task is updated/deleted
     // No need to make an additional API call here
+  }
+
+  // Remove a goal task reminder notification
+  Future<void> removeGoalTaskReminderNotification(int taskId) async {
+    // Reuse the same method since the logic is identical
+    await removeTaskReminderNotification(taskId);
   }
 
   // Mark a notification as read

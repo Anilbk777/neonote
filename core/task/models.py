@@ -32,16 +32,4 @@ class Task(models.Model):
     def __str__(self):
         return self.title
 
-# We'll use signals instead of overriding save() to avoid circular imports
-@receiver(post_save, sender=Task)
-def handle_task_reminder(sender, instance, created, **kwargs):
-    # Import here to avoid circular import
-    from notifications.models import Notification
-
-    # Handle reminder notifications
-    if instance.has_reminder and instance.reminder_date_time:
-        # Create or update reminder notification
-        Notification.create_task_reminder(instance)
-    elif not instance.has_reminder or instance.status == 'completed':
-        # Remove any existing reminder notifications
-        Notification.remove_task_reminder(instance.id)
+# Signal handlers for Task reminders are now in notifications/signals.py

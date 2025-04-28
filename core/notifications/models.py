@@ -78,40 +78,79 @@ class Notification(models.Model):
     @classmethod
     def create_task_reminder(cls, task):
         """Create a notification for a task reminder"""
-        # Import Task model here to avoid circular import
-        from task.models import Task
+        # Import Task models here to avoid circular import
+        try:
+            from task.models import Task as IndependentTask
+            from goals.models import Task as GoalTask
 
-        if not isinstance(task, Task):
-            return None
+            print(f"Creating task reminder for task ID: {task.id}, title: {task.title}")
 
-        if not task.has_reminder or not task.reminder_date_time:
-            return None
+            # Check if task has the required attributes
+            if not hasattr(task, 'has_reminder') or not hasattr(task, 'reminder_date_time'):
+                print(f"Task {task.id} missing required attributes")
+                return None
 
-        # Check if a notification for this task already exists
-        existing = cls.objects.filter(
-            user=task.user,
-            notification_type='task_due',
-            source_id=task.id
-        ).first()
+            # Check if task has reminder enabled
+            if not task.has_reminder or not task.reminder_date_time:
+                print(f"Task {task.id} has no reminder or reminder_date_time is None")
+                return None
 
-        if existing:
-            # Update existing notification
-            existing.title = f"Task Reminder: {task.title}"
-            existing.message = f"Reminder for your task: {task.title}"
-            existing.due_date_time = task.reminder_date_time
-            existing.is_read = False
-            existing.save()
-            return existing
-        else:
-            # Create new notification
-            return cls.objects.create(
+            print(f"Task {task.id} has reminder: {task.has_reminder}, time: {task.reminder_date_time}")
+
+            # Check if task has user attribute
+            if not hasattr(task, 'user'):
+                print(f"Task {task.id} has no user attribute")
+                return None
+
+            print(f"Task {task.id} has user: {task.user}")
+
+            # Check if a notification for this task already exists
+            existing = cls.objects.filter(
                 user=task.user,
-                title=f"Task Reminder: {task.title}",
-                message=f"Reminder for your task: {task.title}",
                 notification_type='task_due',
-                due_date_time=task.reminder_date_time,
                 source_id=task.id
-            )
+            ).first()
+
+            # Check if this is a goal task (has goal attribute)
+            goal_title = None
+            if hasattr(task, 'goal') and task.goal:
+                try:
+                    goal_title = task.goal.title
+                    print(f"Task {task.id} belongs to goal: {goal_title}")
+                except Exception as e:
+                    print(f"Error getting goal title: {e}")
+
+            # Create appropriate message based on whether it's a goal task
+            title = f"Task Reminder: {task.title}"
+            if isinstance(task, GoalTask) and goal_title:
+                message = f"Reminder for your goal task: {task.title} (Goal: {goal_title})"
+                title = f"Goal Task Reminder: {task.title}"
+            else:
+                message = f"Reminder for your task: {task.title}"
+
+            if existing:
+                # Update existing notification
+                print(f"Updating existing notification for task {task.id}")
+                existing.title = title
+                existing.message = message
+                existing.due_date_time = task.reminder_date_time
+                existing.is_read = False
+                existing.save()
+                return existing
+            else:
+                # Create new notification
+                print(f"Creating new notification for task {task.id}")
+                return cls.objects.create(
+                    user=task.user,
+                    title=title,
+                    message=message,
+                    notification_type='task_due',
+                    due_date_time=task.reminder_date_time,
+                    source_id=task.id
+                )
+        except Exception as e:
+            print(f"Error creating task reminder: {e}")
+            return None
 
     @classmethod
     def remove_task_reminder(cls, task_id):

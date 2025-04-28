@@ -225,6 +225,38 @@ class GoalService {
     }
   }
 
+  // Fetch a goal by ID
+  static Future<Goal> fetchGoalById(int goalId) async {
+    try {
+      final headers = await _getAuthHeaders();
+      print('📡 Fetching goal #$goalId');
+
+      final response = await http.get(
+        Uri.parse('$baseUrl$goalEndpoint$goalId/'),
+        headers: headers,
+      );
+
+      print('📥 Response status: ${response.statusCode}');
+      print('📥 Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        print('✅ Goal fetched successfully');
+        return Goal.fromJson(json.decode(response.body));
+      } else if (response.statusCode == 401) {
+        print('🔒 Authentication failed. Token might be expired.');
+        await LocalStorage.clearToken();
+        throw Exception('Your session has expired. Please login again.');
+      } else if (response.statusCode == 404) {
+        throw Exception('Goal not found');
+      } else {
+        throw Exception('Failed to fetch goal: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error fetching goal: $e');
+      throw Exception('Failed to fetch goal: $e');
+    }
+  }
+
   // Delete a goal
   static Future<void> deleteGoal(int goalId) async {
     try {

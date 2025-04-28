@@ -57,5 +57,5 @@ class TaskSerializer(serializers.ModelSerializer):
         model = Task
         fields = [
             'id', 'title', 'goal', 'status', 'priority', 'due_date', 'user',
-            'created_by', 'date_created'
+            'created_by', 'date_created', 'has_reminder', 'reminder_date_time'
         ]

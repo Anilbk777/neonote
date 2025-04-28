@@ -53,22 +53,37 @@ class GoalTaskService {
 }
 
 Future<TaskModel> createTaskForGoal(
-    String title, String priority, String dueDate, String status, int goalId, int userId) async {
+    String title, String priority, String dueDate, String status, int goalId, int userId,
+    {bool? hasReminder, DateTime? reminderDateTime}) async {
   final DateTime now = DateTime.now().toUtc().add(Duration(hours: 5, minutes: 45)); // Nepal Time (UTC+05:45)
   final String formattedDate = DateFormat('yyyy-MM-dd hh:mm:ss a').format(now);
+
+  // Create the request body
+  final Map<String, dynamic> requestBody = {
+    "title": title,
+    "priority": priority,
+    "due_date": dueDate,
+    "status": status,
+    "goal": goalId,
+    "user": userId, // Include the user ID
+    "date_created": formattedDate,
+  };
+
+  // Add reminder fields if provided
+  if (hasReminder != null) {
+    requestBody["has_reminder"] = hasReminder;
+    print("Creating task with hasReminder: $hasReminder"); // Debug print
+  }
+
+  if (reminderDateTime != null) {
+    requestBody["reminder_date_time"] = reminderDateTime.toIso8601String();
+    print("Creating task with reminderDateTime: ${reminderDateTime.toIso8601String()}"); // Debug print
+  }
 
   final response = await http.post(
     Uri.parse("${baseUrl}tasks/"),
     headers: await _getHeaders(),
-    body: jsonEncode({
-      "title": title,
-      "priority": priority,
-      "due_date": dueDate,
-      "status": status,
-      "goal": goalId,
-      "user": userId, // Include the user ID
-      "date_created": formattedDate,
-    }),
+    body: jsonEncode(requestBody),
   );
 
   if (response.statusCode == 201 || response.statusCode == 200) {
@@ -79,18 +94,36 @@ Future<TaskModel> createTaskForGoal(
 }
 
 Future<void> updateTask(
-    int id, String title, String priority, String dueDate, String status, int goalId, int userId) async {
+    int id, String title, String priority, String dueDate, String status, int goalId, int userId,
+    {bool? hasReminder, DateTime? reminderDateTime}) async {
+
+  // Create the request body
+  final Map<String, dynamic> requestBody = {
+    "title": title,
+    "priority": priority,
+    "due_date": dueDate,
+    "status": status,
+    "goal": goalId, // Include the goal field
+    "user": userId, // Include the user field
+  };
+
+  // Add reminder fields if provided
+  if (hasReminder != null) {
+    requestBody["has_reminder"] = hasReminder;
+    print("Updating task $id with hasReminder: $hasReminder"); // Debug print
+  }
+
+  if (reminderDateTime != null) {
+    requestBody["reminder_date_time"] = reminderDateTime.toIso8601String();
+    print("Updating task $id with reminderDateTime: ${reminderDateTime.toIso8601String()}"); // Debug print
+  }
+
+  print("Full update request body: $requestBody"); // Debug print for the entire request
+
   final response = await http.put(
     Uri.parse("${baseUrl}tasks/$id/"),
     headers: await _getHeaders(),
-    body: jsonEncode({
-      "title": title,
-      "priority": priority,
-      "due_date": dueDate,
-      "status": status,
-      "goal": goalId, // Include the goal field
-      "user": userId, // Include the user field
-    }),
+    body: jsonEncode(requestBody),
   );
 
   if (response.statusCode == 200) {

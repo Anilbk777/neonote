@@ -116,7 +116,8 @@ class Task(models.Model):
     date_created = models.DateTimeField(auto_now_add=True)
     goal = models.ForeignKey(Goal, related_name='tasks', on_delete=models.CASCADE, null=True, blank=True)
     created_by = models.CharField(max_length=100, default='system')
-
+    has_reminder = models.BooleanField(default=False)
+    reminder_date_time = models.DateTimeField(null=True, blank=True)
 
 
     def __str__(self):

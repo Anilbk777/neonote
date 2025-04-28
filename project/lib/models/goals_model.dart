@@ -97,7 +97,9 @@ class GoalTask {
   final String priority;
   final DateTime? dueDate;
   final DateTime dateCreated;
-  final int goal; // Add this field if needed
+  final int goal;
+  final bool hasReminder;
+  final DateTime? reminderDateTime;
 
   GoalTask({
     required this.id,
@@ -106,10 +108,39 @@ class GoalTask {
     required this.priority,
     this.dueDate,
     required this.dateCreated,
-    required this.goal, // Add this to the constructor
+    required this.goal,
+    this.hasReminder = false,
+    this.reminderDateTime,
   });
 
   factory GoalTask.fromJson(Map<String, dynamic> json) {
+    // Parse reminder date time if available
+    DateTime? reminderDateTime;
+    if (json['reminder_date_time'] != null) {
+      try {
+        reminderDateTime = DateTime.parse(json['reminder_date_time']);
+      } catch (e) {
+        print('Error parsing reminder date time: $e');
+      }
+    }
+
+    // Handle has_reminder field - convert to boolean
+    bool hasReminder = false;
+    if (json['has_reminder'] != null) {
+      // If it's already a boolean, use it directly
+      if (json['has_reminder'] is bool) {
+        hasReminder = json['has_reminder'];
+      }
+      // If it's a string, convert it to boolean
+      else if (json['has_reminder'] is String) {
+        hasReminder = json['has_reminder'].toLowerCase() == 'true';
+      }
+      // If it's a number, treat non-zero as true
+      else if (json['has_reminder'] is num) {
+        hasReminder = json['has_reminder'] != 0;
+      }
+    }
+
     return GoalTask(
       id: json['id'] ?? 0,
       title: json['title'] ?? 'Untitled Task',
@@ -117,7 +148,9 @@ class GoalTask {
       priority: json['priority'] ?? 'medium',
       dueDate: json['due_date'] != null ? DateTime.parse(json['due_date']) : null,
       dateCreated: DateTime.parse(json['date_created']),
-      goal: json['goal'], // Parse the goal field
+      goal: json['goal'],
+      hasReminder: hasReminder,
+      reminderDateTime: reminderDateTime,
     );
   }
 
@@ -129,7 +162,9 @@ class GoalTask {
       'priority': priority,
       'due_date': dueDate?.toIso8601String(),
       'date_created': dateCreated.toIso8601String(),
-      'goal': goal, // Include the goal field in the JSON
+      'goal': goal,
+      'has_reminder': hasReminder,
+      'reminder_date_time': reminderDateTime?.toIso8601String(),
     };
   }
 }

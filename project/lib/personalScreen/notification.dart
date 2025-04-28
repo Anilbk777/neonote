@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:project/widgets/custom_scaffold.dart';
 import 'package:project/providers/notification_provider.dart';
 import 'package:project/models/notification_model.dart';
+import 'package:project/models/goals_model.dart';
 import 'package:project/services/local_storage.dart';
+import 'package:project/services/goal_service.dart';
 import 'package:provider/provider.dart';
 import 'package:project/personalScreen/goal.dart';
 import 'package:project/personalScreen/tasklist.dart';
+import 'package:project/personalScreen/goal_task_detail.dart';
 
 class NotificationPage extends StatefulWidget {
   const NotificationPage({super.key});
@@ -754,24 +757,112 @@ class _NotificationPageState extends State<NotificationPage> {
       final int taskId = notification.sourceId!;
       // print('📋 Found task ID: $taskId');
 
-      // Navigate to the task list page with the highlighted task ID
-      // print('🚀 Navigating to task list page with highlighted task ID: $taskId');
+      // First, try to determine if this is a goal task or a regular task
+      // We'll check if the notification title contains "Goal Task" or similar
+      bool isGoalTask = notification.title.toLowerCase().contains("goal") ||
+                        notification.message.toLowerCase().contains("goal");
 
-      // Use a simple navigation approach with .then() to refresh after returning
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => TaskScreen(
-            highlightedTaskId: taskId,
-          ),
-        ),
-      ).then((_) {
-        // Refresh notifications when returning from the task list page
-        if (mounted) {
-          // print('🔄 Refreshing notifications after returning from task list page');
-          _refreshNotifications();
+      if (isGoalTask) {
+        // Try to extract the goal ID from the notification message if available
+        int? goalId;
+
+        // Simple regex to find goal ID in the message
+        final RegExp goalIdRegex = RegExp(r'goal\s+(\d+)', caseSensitive: false);
+        final match = goalIdRegex.firstMatch(notification.message);
+
+        if (match != null && match.groupCount >= 1) {
+          goalId = int.tryParse(match.group(1)!);
         }
-      });
+
+        if (goalId != null) {
+          // Show loading indicator
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+
+          // Fetch the goal
+          GoalService.fetchGoalById(goalId).then((goal) {
+            // Close loading indicator
+            Navigator.pop(context);
+
+            // Navigate to the goal detail screen
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => GoalDetailScreen(
+                  goal: goal,
+                  highlightedTaskId: taskId,
+                ),
+              ),
+            ).then((_) {
+              // Refresh notifications when returning
+              if (mounted) {
+                _refreshNotifications();
+              }
+            });
+          }).catchError((error) {
+            // Close loading indicator
+            Navigator.pop(context);
+
+            // Show error message
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to load goal: $error'),
+                backgroundColor: Colors.red,
+              ),
+            );
+
+            // Navigate to the task list page as a fallback
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => TaskScreen(
+                  highlightedTaskId: taskId,
+                ),
+              ),
+            ).then((_) {
+              // Refresh notifications when returning
+              if (mounted) {
+                _refreshNotifications();
+              }
+            });
+          });
+        } else {
+          // If we couldn't extract the goal ID, navigate to the task list page as a fallback
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TaskScreen(
+                highlightedTaskId: taskId,
+              ),
+            ),
+          ).then((_) {
+            // Refresh notifications when returning
+            if (mounted) {
+              _refreshNotifications();
+            }
+          });
+        }
+      } else {
+        // Navigate to the regular task list page with the highlighted task ID
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TaskScreen(
+              highlightedTaskId: taskId,
+            ),
+          ),
+        ).then((_) {
+          // Refresh notifications when returning from the task list page
+          if (mounted) {
+            _refreshNotifications();
+          }
+        });
+      }
     }
   }
 
