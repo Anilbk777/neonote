@@ -78,33 +78,7 @@ class _ContentPageState extends State<ContentPage> {
   void dispose() {
     // Save content before disposing if there are changes
     if (_contentChanged && mounted) {
-      try {
-        // Create a local copy of the data we need
-        final pageId = widget.page.id;
-        final parentId = widget.page.parentId;
-        final title = _titleController.text;
-        final bgColor = _backgroundColor.value;
-
-        // Get the document content
-        final updatedContent = jsonEncode(_quillController.document.toDelta().toJson());
-
-        // Create the metadata
-        final metadata = {'backgroundColor': bgColor};
-
-        // Combine content and metadata
-        final contentWithMetadata = jsonEncode({
-          'content': updatedContent,
-          'metadata': metadata,
-        });
-
-        // Get the provider
-        final pagesProvider = Provider.of<PagesProvider>(context, listen: false);
-
-        // Update the page without waiting for the result
-        pagesProvider.updatePage(pageId, title, contentWithMetadata, parentId: parentId);
-      } catch (e) {
-        print('Error saving content during dispose: $e');
-      }
+      _saveSilently();
     }
 
     _quillController.dispose();
@@ -135,26 +109,62 @@ class _ContentPageState extends State<ContentPage> {
     }
   }
 
-  // Navigate to parent page
-  void _navigateToParentPage() {
+  // Helper method to build the breadcrumb path
+  List<PageModel> getBreadcrumbPath() {
+    List<PageModel> path = [];
+    List<PageModel> pages = Provider.of<PagesProvider>(context, listen: false).pages;
+
+    // Add the current page to the path
+    path.add(widget.page);
+
+    // Recursively add parent pages to the path
+    int? parentId = widget.page.parentId;
+
+    while (parentId != null) {
+      try {
+        // Find the parent page
+        final parentPage = pages.firstWhere((page) => page.id == parentId);
+
+        // Add it to the path
+        path.add(parentPage);
+
+        // Move up to the next parent
+        parentId = parentPage.parentId;
+      } catch (e) {
+        print('Error finding parent page with ID $parentId: $e');
+        break;
+      }
+    }
+
+    // Reverse the path so it goes from root to current page
+    return path.reversed.toList();
+  }
+
+  // Navigate to a specific page in the breadcrumb
+  void _navigateToPage(PageModel page) {
     // Always save current content before navigating to ensure it's saved
-    _saveContentSafely();
+    _saveSilently();
     _contentChanged = false;
 
+    print('Navigating to page ID: ${page.id}, title: ${page.title}');
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ContentPage(page: page),
+      ),
+    ).then((_) {
+      if (mounted) {
+        print('Returned from page');
+      }
+    });
+  }
+
+  // Navigate to parent page
+  void _navigateToParentPage() {
     final parentPage = getParentPage();
     if (parentPage != null) {
-      print('Navigating to parent page ID: ${parentPage.id}, title: ${parentPage.title}');
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ContentPage(page: parentPage),
-        ),
-      ).then((_) {
-        if (mounted) {
-          print('Returned from parent page');
-        }
-      });
+      _navigateToPage(parentPage);
     }
   }
 
@@ -617,7 +627,7 @@ class _ContentPageState extends State<ContentPage> {
       print('Document delta after insert: ${jsonEncode(delta.toJson())}');
 
       // Save the content after inserting the embed
-      _saveContentSafely();
+      _saveSilently();
       _contentChanged = false;
 
       print('Subpage embed inserted and content saved');
@@ -632,7 +642,7 @@ class _ContentPageState extends State<ContentPage> {
   // Method to navigate to a subpage
   void _navigateToSubpage(PageModel subpage) {
     // Always save current content before navigating to ensure it's saved
-    _saveContentSafely();
+    _saveSilently();
     _contentChanged = false;
 
     print('Navigating to subpage ID: ${subpage.id}, title: ${subpage.title}');
@@ -804,8 +814,8 @@ class _ContentPageState extends State<ContentPage> {
     });
   }
 
-  // Safe version of _saveContent that checks if the widget is mounted
-  void _saveContentSafely() {
+  // Silent save method that doesn't show notifications
+  void _saveSilently() {
     if (!mounted) return;
 
     try {
@@ -814,9 +824,8 @@ class _ContentPageState extends State<ContentPage> {
       final deltaJson = delta.toJson();
       String updatedContent = jsonEncode(deltaJson);
 
-      print('Saving content for page ID: ${widget.page.id}, title: ${_titleController.text}');
+      print('Silently saving content for page ID: ${widget.page.id}, title: ${_titleController.text}');
       print('Is subpage: ${widget.page.isSubpage}, parent ID: ${widget.page.parentId}');
-      print('Delta JSON: $deltaJson');
 
       // Create a map to store additional metadata
       Map<String, dynamic> metadata = {
@@ -832,15 +841,99 @@ class _ContentPageState extends State<ContentPage> {
       // Convert to JSON string
       String contentWithMetadata = jsonEncode(contentMap);
 
-      print('Content with metadata (truncated): ${contentWithMetadata.length > 100 ? contentWithMetadata.substring(0, 100) + "..." : contentWithMetadata}');
+      // Verify the JSON is valid by parsing it back
+      try {
+        jsonDecode(contentWithMetadata);
+      } catch (e) {
+        print('Warning: Content is not valid JSON: $e');
+        return;
+      }
+
+      // Get the provider before checking mounted again
+      final pagesProvider = Provider.of<PagesProvider>(context, listen: false);
+
+      // Check mounted again before proceeding
+      if (!mounted) return;
+
+      // Update the page with the new content
+      pagesProvider.updatePage(
+        widget.page.id,
+        _titleController.text,
+        contentWithMetadata,
+        parentId: widget.page.parentId, // Preserve the parent-child relationship
+      ).then((_) {
+        if (mounted) {
+          print('Content silently saved for page ID: ${widget.page.id}');
+          // Mark content as not changed after successful save
+          _contentChanged = false;
+        }
+      }).catchError((error) {
+        print('Error saving content for page ID: ${widget.page.id}: $error');
+      });
+    } catch (e) {
+      print('Error in silent save: $e');
+    }
+  }
+
+  // Save content with notification - used when user explicitly presses save
+  void _saveContent() {
+    if (!mounted) return;
+
+    try {
+      // Encode the current document as Delta JSON.
+      final delta = _quillController.document.toDelta();
+      final deltaJson = delta.toJson();
+      String updatedContent = jsonEncode(deltaJson);
+
+      print('Saving content for page ID: ${widget.page.id}, title: ${_titleController.text}');
+      print('Is subpage: ${widget.page.isSubpage}, parent ID: ${widget.page.parentId}');
+
+      // Create a map to store additional metadata
+      Map<String, dynamic> metadata = {
+        'backgroundColor': _backgroundColor.value,
+      };
+
+      // Create the content with metadata structure
+      Map<String, dynamic> contentMap = {
+        'content': updatedContent,
+        'metadata': metadata,
+      };
+
+      // Convert to JSON string
+      String contentWithMetadata = jsonEncode(contentMap);
 
       // Verify the JSON is valid by parsing it back
       try {
-        final parsed = jsonDecode(contentWithMetadata);
-        print('Content is valid JSON');
+        jsonDecode(contentWithMetadata);
       } catch (e) {
         print('Warning: Content is not valid JSON: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text("Error: Invalid content format")));
+        }
+        return;
       }
+
+      // Show a loading indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 10),
+              Text("Saving content..."),
+            ],
+          ),
+          duration: Duration(seconds: 1),
+        ),
+      );
 
       // Get the provider before checking mounted again
       final pagesProvider = Provider.of<PagesProvider>(context, listen: false);
@@ -872,13 +965,11 @@ class _ContentPageState extends State<ContentPage> {
       });
     } catch (e) {
       print('Error saving content: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Error saving content")));
+      }
     }
-  }
-
-  // Original _saveContent method for direct calls
-  void _saveContent() {
-    if (!mounted) return;
-    _saveContentSafely();
   }
 
   @override
@@ -888,7 +979,7 @@ class _ContentPageState extends State<ContentPage> {
       onWillPop: () async {
         // Save content before popping if there are changes
         if (_contentChanged) {
-          _saveContentSafely();
+          _saveSilently();
         }
         return true;
       },
@@ -917,7 +1008,7 @@ class _ContentPageState extends State<ContentPage> {
                   setState(() {
                     _isEditingTitle = false;
                   });
-                  _saveContent(); // Save the title when done editing
+                  _saveSilently(); // Save the title when done editing without showing notification
                 },
               )
             : Column(
@@ -926,32 +1017,64 @@ class _ContentPageState extends State<ContentPage> {
                 children: [
                   // Show breadcrumb navigation if this is a subpage
                   if (widget.page.isSubpage)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4.0),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          InkWell(
-                            onTap: _navigateToParentPage,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.arrow_back_ios,
-                                  size: 12,
-                                  color: Colors.grey,
-                                ),
-                                Text(
-                                  getParentPage()?.title ?? 'Parent',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ],
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+                      margin: const EdgeInsets.only(bottom: 8.0),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(4.0),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Home icon at the beginning
+                            const Icon(
+                              Icons.home,
+                              size: 14,
+                              color: Colors.grey,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+
+                            // Build the breadcrumb path
+                            ...getBreadcrumbPath().asMap().entries.map((entry) {
+                              final index = entry.key;
+                              final page = entry.value;
+                              final isLastItem = index == getBreadcrumbPath().length - 1;
+
+                              return Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Show all pages in the path
+                                  InkWell(
+                                    onTap: isLastItem ? null : () => _navigateToPage(page),
+                                    child: Text(
+                                      page.title,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: isLastItem ? Colors.grey : Colors.blue,
+                                        fontWeight: isLastItem ? FontWeight.bold : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ),
+
+                                  // Add separator between items (except after the last item)
+                                  if (!isLastItem)
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(horizontal: 4.0),
+                                      child: Icon(
+                                        Icons.chevron_right,
+                                        size: 14,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                ],
+                              );
+                            }).toList(),
+                          ],
+                        ),
                       ),
                     ),
                   // Page title
@@ -1190,7 +1313,7 @@ class _ContentPageState extends State<ContentPage> {
       ),
       onItemSelected: (String selectedPageTitle) {
         // Always save current content before navigating to ensure it's saved
-        _saveContentSafely();
+        _saveSilently();
         _contentChanged = false;
 
         final selectedPage = getPageModelByTitle(selectedPageTitle);
