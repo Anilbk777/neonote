@@ -75,12 +75,14 @@ class PageSerializer(serializers.ModelSerializer):
         """Custom update method to handle parent_id field"""
         print(f"Updating page with validated data: {validated_data}")
 
+        # Import Doc at the beginning of the method to ensure it's in scope
+        from .models import Doc
+
         # Handle parent_id separately
         parent_id = validated_data.pop('parent_id', None)
         if parent_id is not None:
             try:
                 # Get the parent page
-                from .models import Doc
                 parent = Doc.objects.get(id=parent_id)
                 validated_data['parent'] = parent
                 print(f"Set parent to page with ID: {parent.id}, title: {parent.title}")
@@ -100,12 +102,14 @@ class PageSerializer(serializers.ModelSerializer):
         """Custom create method to handle parent_id field"""
         print(f"Creating page with validated data: {validated_data}")
 
+        # Import Doc at the beginning of the method to ensure it's in scope
+        from .models import Doc
+
         # Handle parent_id separately
         parent_id = validated_data.pop('parent_id', None)
         if parent_id is not None:
             try:
                 # Get the parent page
-                from .models import Doc
                 parent = Doc.objects.get(id=parent_id)
                 validated_data['parent'] = parent
                 print(f"Set parent to page with ID: {parent.id}, title: {parent.title}")

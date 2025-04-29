@@ -1,16 +1,15 @@
-
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:project/personalScreen/quicknotes.dart';
 import 'package:project/providers/pages_provider.dart';
 import 'package:project/providers/notification_provider.dart';
-import 'package:project/models/page.dart'; // Ensure PageModel is imported
+import 'package:project/models/page.dart';
 import 'package:project/personalScreen/diary_page.dart';
 import 'package:project/dashboard.dart';
 import 'package:project/personalScreen/notification.dart';
-import 'package:project/personalScreen/bin.dart'; // Import for BinPage and BinProvider
+import 'package:project/personalScreen/bin.dart';
 import 'package:project/personalScreen/calender.dart';
+import 'package:project/workspace_dashboard.dart'; // Add this import
 
 import 'package:project/personalScreen/goal.dart';
 import 'package:project/personalScreen/tasklist.dart';
@@ -34,34 +33,11 @@ class CustomScaffold extends StatefulWidget {
   _CustomScaffoldState createState() => _CustomScaffoldState();
 }
 
-class _CustomScaffoldState extends State<CustomScaffold> {
+class _CustomScaffoldState extends State<CustomScaffold> with SingleTickerProviderStateMixin {
   List<String> personalSpacePages = ['Diary',  'Goals', 'Task List'];
 
   @override
-  void initState() {
-    super.initState();
-    // Fetch pages when the scaffold is first created
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _fetchPages();
-    });
-  }
-
-  // Fetch user's content pages
-  Future<void> _fetchPages() async {
-    try {
-      // Access the PagesProvider and fetch pages
-      final pagesProvider = Provider.of<PagesProvider>(context, listen: false);
-      await pagesProvider.fetchPages();
-      print('✅ Pages fetched successfully in CustomScaffold');
-    } catch (e) {
-      print('⚠️ Error fetching pages in CustomScaffold: $e');
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    // Get the NotificationProvider from the app-level provider
-    // This will ensure it's properly initialized and shared across the app
     final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
 
     return Scaffold(
@@ -90,13 +66,10 @@ class _CustomScaffoldState extends State<CustomScaffold> {
                     ),
                     const Divider(),
                     _buildSidebarItem(Icons.home, 'Home', '/dashboard'),
-                    // Use Consumer with listen: true to ensure updates
+                    // Notification with badge count
                     Consumer<NotificationProvider>(
                       builder: (context, notificationProvider, child) {
-                        // Force rebuild when unreadCount changes
                         final unreadCount = notificationProvider.unreadCount;
-                        // print('Notification count updated: $unreadCount');
-
                         return _buildSidebarItem(
                           Icons.notifications,
                           'Notification',
@@ -105,48 +78,76 @@ class _CustomScaffoldState extends State<CustomScaffold> {
                         );
                       },
                     ),
+                    // Switch to Team Space button
+                    _buildSidebarItem(
+                      Icons.work,
+                      'Switch to Team Space',
+                      WorkspaceDashboardScreen(),
+                    ),
                     const Divider(),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      child: Column(
                         children: [
-                          const Text(
-                            'Personal Space',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE3F2FD).withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFF255DE1).withOpacity(0.2)),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Personal Space',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF255DE1),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.add, color: Color(0xFF255DE1)),
+                                  onPressed: () => _showAddPageDialog(context),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  splashRadius: 20,
+                                ),
+                              ],
+                            ),
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.add, color: Colors.black54),
-                            onPressed: () => _showAddPageDialog(context),
+                          Column(
+                            children: [
+                              for (var page in personalSpacePages)
+                                _buildSidebarItem(_getIconForPage(page), page, _getPageByName(page)),
+                              Consumer<PagesProvider>(
+                                builder: (context, pagesProvider, child) {
+                                  final topLevelPages = pagesProvider.getTopLevelPages();
+                                  return Column(
+                                    children: topLevelPages.map((pageModel) {
+                                      return _CustomPageItem(
+                                        pageModel: pageModel,
+                                        isSelected: widget.selectedPage == pageModel.title,
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => ContentPage(page: pageModel),
+                                            ),
+                                          );
+                                        },
+                                        onDelete: () => _showDeleteConfirmationDialog(context, pageModel),
+                                      );
+                                    }).toList(),
+                                  );
+                                },
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ),
-                    for (var page in personalSpacePages)
-                      _buildSidebarItem(_getIconForPage(page), page, _getPageByName(page)),
-                    Consumer<PagesProvider>(
-                      builder: (context, pagesProvider, child) {
-                        // Filter to only show top-level pages (pages without a parent)
-                        final topLevelPages = pagesProvider.getTopLevelPages();
-
-                        return Column(
-                          children: topLevelPages.map((pageModel) {
-                            return _CustomPageItem(
-                              pageModel: pageModel,
-                              isSelected: widget.selectedPage == pageModel.title,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => ContentPage(page: pageModel),
-                                  ),
-                                );
-                              },
-                              onDelete: () => _showDeleteConfirmationDialog(context, pageModel),
-                            );
-                          }).toList(),
-                        );
-                      },
                     ),
                     const Divider(),
                     _buildSidebarItem(Icons.calendar_today, 'Calendar', Calenderpage()),
