@@ -18,7 +18,6 @@ class CustomScaffoldWorkspace extends StatefulWidget {
 }
 
 class CustomScaffoldWorkspaceState extends State<CustomScaffoldWorkspace> {
-  List<String> workspacePages = ['Work', 'Goals', 'Task List'];
 
   @override
   Widget build(BuildContext context) {
@@ -30,164 +29,107 @@ class CustomScaffoldWorkspaceState extends State<CustomScaffoldWorkspace> {
             flex: 1,
             child: Container(
               color: const Color(0xFFEFEFF4),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // App Title
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16.0),
-                      child: const Text(
-                        'NeoNote',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF255DE1),
-                        ),
+              height: double.infinity,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // App Title
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16.0),
+                    color: const Color(0xFFEFEFF4),
+                    child: const Text(
+                      'NeoNote',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF255DE1),
                       ),
                     ),
-                    const Divider(height: 1),
-                    const SizedBox(height: 16),
-                    // Main Navigation
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: _HoverSidebarItem(
-                        icon: Icons.home,
-                        label: 'Home',
-                        isSelected: widget.selectedPage == 'Home',
-                        onTap: () => widget.onItemSelected('Home'),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: _HoverSidebarItem(
-                        icon: Icons.inbox,
-                        label: 'Inbox',
-                        isSelected: widget.selectedPage == 'Inbox',
-                        onTap: () => widget.onItemSelected('Inbox'),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: _HoverSidebarItem(
-                        icon: Icons.person,
-                        label: 'Switch to Personal',
-                        isSelected: false,
-                        onTap: () {
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(builder: (context) => const DashboardScreen()),
-                          );
-                        },
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: _HoverSidebarItem(
-                        icon: Icons.chat,
-                        label: 'Chat',
-                        isSelected: widget.selectedPage == 'Chat',
-                        onTap: () => widget.onItemSelected('Chat'),
-                      ),
-                    ),
+                  ),
+                  const Divider(height: 1),
 
-                    const SizedBox(height: 16),
-                    const Divider(height: 1),
-                    const SizedBox(height: 16),
-
-                    // WorkSpace Section Header
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Workspace',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF255DE1),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.add, color: Color(0xFF255DE1)),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            splashRadius: 20,
-                            onPressed: () => _showAddWorkspaceDialog(context),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // Display workspace pages
-                    for (var page in workspacePages)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                        child: _HoverSidebarItem(
-                          icon: page == 'Work' ? Icons.work :
-                                page == 'Goals' ? Icons.flag :
-                                Icons.task_alt,
-                          label: page,
-                          isSelected: widget.selectedPage == page,
-                          onTap: () => widget.onItemSelected(page),
-                        ),
-                      ),
-
-                    const SizedBox(height: 16),
-                    const Divider(height: 1),
-                    const SizedBox(height: 16),
-
-                    // Utilities
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: _HoverSidebarItem(
-                        icon: Icons.calendar_today,
-                        label: 'Calendar',
-                        isSelected: widget.selectedPage == 'Calendar',
-                        onTap: () => widget.onItemSelected('Calendar'),
-                      ),
-                    ),
-
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: _HoverSidebarItem(
-                        icon: Icons.delete,
-                        label: 'Bin',
-                        isSelected: widget.selectedPage == 'Bin',
-                        onTap: () => widget.onItemSelected('Bin'),
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Invite Members Button
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Invitation feature coming soon!'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.group),
-                        label: const Text('Invite Members'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF255DE1),
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size(double.infinity, 40),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                  // Scrollable content area
+                  Expanded(
+                    child: ListView(
+                      padding: EdgeInsets.zero,
+                      children: [
+                        const SizedBox(height: 16),
+                        // Main Navigation
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          child: _HoverSidebarItem(
+                            icon: Icons.home,
+                            label: 'Home',
+                            isSelected: widget.selectedPage == 'Home',
+                            onTap: () => widget.onItemSelected('Home'),
                           ),
                         ),
-                      ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          child: _HoverSidebarItem(
+                            icon: Icons.inbox,
+                            label: 'Inbox',
+                            isSelected: widget.selectedPage == 'Inbox',
+                            onTap: () => widget.onItemSelected('Inbox'),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          child: _HoverSidebarItem(
+                            icon: Icons.person,
+                            label: 'Switch to Personal',
+                            isSelected: false,
+                            onTap: () {
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(builder: (context) => const DashboardScreen()),
+                              );
+                            },
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          child: _HoverSidebarItem(
+                            icon: Icons.chat,
+                            label: 'Chat',
+                            isSelected: widget.selectedPage == 'Chat',
+                            onTap: () => widget.onItemSelected('Chat'),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+                        const Divider(height: 1),
+                        const SizedBox(height: 16),
+
+                        // Work Item
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          child: _HoverSidebarItem(
+                            icon: Icons.work,
+                            label: 'Work',
+                            isSelected: widget.selectedPage == 'Work',
+                            onTap: () => widget.onItemSelected('Work'),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+                        const Divider(height: 1),
+                        const SizedBox(height: 16),
+
+                        // Utilities
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          child: _HoverSidebarItem(
+                            icon: Icons.delete,
+                            label: 'Bin',
+                            isSelected: widget.selectedPage == 'Bin',
+                            onTap: () => widget.onItemSelected('Bin'),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 24),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -201,58 +143,7 @@ class CustomScaffoldWorkspaceState extends State<CustomScaffoldWorkspace> {
     );
   }
 
-  // Show dialog to add a new workspace item
-  void _showAddWorkspaceDialog(BuildContext context) {
-    final TextEditingController controller = TextEditingController();
 
-    showDialog(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Add New Workspace Item'),
-          content: TextField(
-            controller: controller,
-            decoration: const InputDecoration(
-              hintText: 'Enter item name',
-              border: OutlineInputBorder(),
-              focusedBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: Color(0xFF255DE1)),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(); // Close the dialog
-              },
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (controller.text.isNotEmpty) {
-                  addWorkspaceItem(controller.text);
-                  Navigator.of(dialogContext).pop(); // Close the dialog
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF255DE1),
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Add'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void addWorkspaceItem(String itemName) {
-    if (itemName.isNotEmpty && !workspacePages.contains(itemName)) {
-      setState(() {
-        workspacePages.add(itemName);
-      });
-    }
-  }
 }
 
 class _HoverSidebarItem extends StatefulWidget {
