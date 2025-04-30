@@ -1,149 +1,103 @@
 import 'package:flutter/material.dart';
+import 'package:project/workspace_dashboard.dart';
+import 'package:project/work_page.dart';
+import 'package:project/invitation_inbox_page.dart';
 import 'package:project/dashboard.dart';
 
 class CustomScaffoldWorkspace extends StatefulWidget {
+  final Widget body;
   final String selectedPage;
   final Function(String) onItemSelected;
-  final Widget body;
 
   const CustomScaffoldWorkspace({
-    super.key,
+    Key? key,
+    required this.body,
     required this.selectedPage,
     required this.onItemSelected,
-    required this.body,
-  });
+  }) : super(key: key);
 
   @override
-  CustomScaffoldWorkspaceState createState() => CustomScaffoldWorkspaceState();
+  State<CustomScaffoldWorkspace> createState() => _CustomScaffoldWorkspaceState();
 }
 
-class CustomScaffoldWorkspaceState extends State<CustomScaffoldWorkspace> {
+class _CustomScaffoldWorkspaceState extends State<CustomScaffoldWorkspace> {
+  bool _isPersonalSpaceHovered = false;
+
+  Widget _buildNavItem(BuildContext context, String title, IconData icon, {bool isSelected = false}) {
+    return _HoverSidebarItem(
+      icon: icon,
+      label: title,
+      isSelected: isSelected,
+      onTap: () {
+        if (title == 'Home') {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const WorkspaceDashboardScreen()),
+          );
+        } else if (title == 'Work') {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const WorkPage()),
+          );
+        } else if (title == 'Inbox') {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => const InvitationInboxPage()),
+          );
+        }
+        widget.onItemSelected(title);
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: Row(
         children: [
-          // Sidebar
-          Expanded(
-            flex: 1,
-            child: Container(
-              color: const Color(0xFFEFEFF4),
-              height: double.infinity,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // App Title
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16.0),
-                    color: const Color(0xFFEFEFF4),
-                    child: const Text(
-                      'NeoNote',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF255DE1),
+          Container(
+            width: 250,
+            color: const Color(0xFFF5F5F5),
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    'NeoNote',
+                    style: TextStyle(
+                      color: Color(0xFF255DE1),
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const Divider(),
+                _buildNavItem(context, 'Home', Icons.home, isSelected: widget.selectedPage == 'Home'),
+                _HoverSidebarItem(
+                  icon: Icons.person,
+                  label: 'Switch to Personal Space',
+                  isSelected: false,
+                  onTap: () {
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (context) => const DashboardScreen(),
                       ),
-                    ),
-                  ),
-                  const Divider(height: 1),
-
-                  // Scrollable content area
-                  Expanded(
-                    child: ListView(
-                      padding: EdgeInsets.zero,
-                      children: [
-                        const SizedBox(height: 16),
-                        // Main Navigation
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          child: _HoverSidebarItem(
-                            icon: Icons.home,
-                            label: 'Home',
-                            isSelected: widget.selectedPage == 'Home',
-                            onTap: () => widget.onItemSelected('Home'),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          child: _HoverSidebarItem(
-                            icon: Icons.inbox,
-                            label: 'Inbox',
-                            isSelected: widget.selectedPage == 'Inbox',
-                            onTap: () => widget.onItemSelected('Inbox'),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          child: _HoverSidebarItem(
-                            icon: Icons.person,
-                            label: 'Switch to Personal',
-                            isSelected: false,
-                            onTap: () {
-                              Navigator.of(context).pushReplacement(
-                                MaterialPageRoute(builder: (context) => const DashboardScreen()),
-                              );
-                            },
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          child: _HoverSidebarItem(
-                            icon: Icons.chat,
-                            label: 'Chat',
-                            isSelected: widget.selectedPage == 'Chat',
-                            onTap: () => widget.onItemSelected('Chat'),
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-                        const Divider(height: 1),
-                        const SizedBox(height: 16),
-
-                        // Work Item
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          child: _HoverSidebarItem(
-                            icon: Icons.work,
-                            label: 'Work',
-                            isSelected: widget.selectedPage == 'Work',
-                            onTap: () => widget.onItemSelected('Work'),
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-                        const Divider(height: 1),
-                        const SizedBox(height: 16),
-
-                        // Utilities
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          child: _HoverSidebarItem(
-                            icon: Icons.delete,
-                            label: 'Bin',
-                            isSelected: widget.selectedPage == 'Bin',
-                            onTap: () => widget.onItemSelected('Bin'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                    );
+                  },
+                ),
+                const Divider(),
+                _buildNavItem(context, 'Work', Icons.work, isSelected: widget.selectedPage == 'Work'),
+                _buildNavItem(context, 'Inbox', Icons.inbox, isSelected: widget.selectedPage == 'Inbox'),
+              ],
             ),
           ),
-          // Main Content
           Expanded(
-            flex: 4,
             child: widget.body,
           ),
         ],
       ),
     );
   }
-
-
 }
 
 class _HoverSidebarItem extends StatefulWidget {
@@ -287,7 +241,7 @@ class _HoverSidebarItemState extends State<_HoverSidebarItem> with SingleTickerP
     } else if (_isHovering) {
       return const Color(0xFF255DE1).withOpacity(0.8);
     } else {
-      return Colors.black54;
+      return const Color(0xFF2D2D2D);
     }
   }
 
@@ -297,7 +251,7 @@ class _HoverSidebarItemState extends State<_HoverSidebarItem> with SingleTickerP
     } else if (_isHovering) {
       return const Color(0xFF255DE1).withOpacity(0.8);
     } else {
-      return Colors.black87;
+      return const Color(0xFF2D2D2D);
     }
   }
 

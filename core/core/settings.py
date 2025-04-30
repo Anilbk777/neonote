@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'diary',
     'events',
     'notifications.apps.NotificationsConfig',
+    'work',
 ]
 
 ASGI_APPLICATION = 'your_project_name.asgi.application'
