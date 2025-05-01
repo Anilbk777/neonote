@@ -675,6 +675,7 @@ class _WorkPageState extends State<WorkPage> {
               'description': project['description'],
               'members': project['members'] ?? [],
               'is_hosted_by_user': project['is_hosted_by_user'] ?? false,
+              'owner': project['owner'], // Assuming the API provides owner details
             }).toList();
             isLoading = false;
           });
@@ -1119,7 +1120,8 @@ class ProjectCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final members = (project['members'] as List<dynamic>?) ?? [];
-    final bool isMemberProject = project['is_hosted_by_user'] == false;
+    final bool isHostedByUser = project['is_hosted_by_user'] == true; // Explicit check for clarity
+    final owner = project['owner'] as Map<String, dynamic>?; // Get owner info if available
 
     return GestureDetector(
       onTap: () {
@@ -1129,7 +1131,7 @@ class ProjectCard extends StatelessWidget {
               title: project['name'],
               description: project['description'],
               projectId: project['id'],
-              isHostedByUser: project['is_hosted_by_user'],
+              isHostedByUser: isHostedByUser, // Pass the boolean
             ),
           ),
         ).then((_) => fetchProjects()); // Refresh projects when returning from detail page
@@ -1177,7 +1179,7 @@ class ProjectCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (isMemberProject)
+                  if (!isHostedByUser) // Show leave button only if NOT hosted by user
                     IconButton(
                       icon: const Icon(Icons.exit_to_app, color: Colors.red, size: 18),
                       tooltip: 'Leave Project',
@@ -1197,6 +1199,26 @@ class ProjectCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 4),
+            // Display Host Info if hosted by user and owner info is available
+            if (isHostedByUser && owner != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4.0),
+                child: Row(
+                  children: [
+                    Icon(Icons.star, size: 12, color: Colors.orange[700]),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Host: ${owner['full_name'] ?? 'Unknown'}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[700],
+                        fontWeight: FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
             if (members.isNotEmpty)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),

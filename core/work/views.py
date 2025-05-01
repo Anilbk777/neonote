@@ -359,13 +359,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
         try:
             logger.info(f"Attempting to create project with data: {request.data}")
 
-            if not request.user.is_authenticated:
-                logger.error("User is not authenticated")
-                return Response(
-                    {"error": "Authentication required"},
-                    status=status.HTTP_401_UNAUTHORIZED
-                )
-
             serializer = self.get_serializer(data=request.data)
             if serializer.is_valid():
                 self.perform_create(serializer)
@@ -476,8 +469,6 @@ class TeamInvitationViewSet(viewsets.ModelViewSet):
             )
 
         try:
-            invitation.responded_at = timezone.now()
-
             if action == 'accept':
                 invitation.project.members.add(request.user)
                 invitation.status = 'accepted'
@@ -513,7 +504,6 @@ class TeamInvitationViewSet(viewsets.ModelViewSet):
                 {'message': 'Invitation deleted successfully'},
                 status=status.HTTP_200_OK
             )
-            print(default_api.read_file(path = "project/lib/work_page.dart"))
 
         except Exception as e:
             logger.error(f"Error deleting invitation: {str(e)}", exc_info=True)
