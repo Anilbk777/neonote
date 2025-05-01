@@ -49,9 +49,11 @@ INSTALLED_APPS = [
     'events',
     'notifications.apps.NotificationsConfig',
     'work',
+    'project_tasks', # Add the new project tasks app
+    'rest_framework_nested', # Add nested routers back
 ]
 
-ASGI_APPLICATION = 'your_project_name.asgi.application'
+ASGI_APPLICATION = 'core.asgi.application'
 # JWT Authentication settings
 # REST_FRAMEWORK = {
 #     'DEFAULT_AUTHENTICATION_CLASSES': (
