@@ -44,6 +44,21 @@ class NotificationViewSet(viewsets.ModelViewSet):
         self.get_queryset().delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
     
+    @action(detail=True, methods=['delete'], url_path='delete')
+    def delete_notification(self, request, pk=None):
+        """Delete a specific notification"""
+        notification = self.get_object()
+        if notification.user != request.user:
+            return Response(
+                {'error': 'You do not have permission to delete this notification'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        notification.delete()
+        return Response(
+            {'message': 'Notification deleted successfully'},
+            status=status.HTTP_200_OK
+        )
+    
     def list(self, request, *args, **kwargs):
         """Override list to handle missing user data"""
         logger.info(f"Received request to list notifications for user: {request.user}")

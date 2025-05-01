@@ -40,7 +40,7 @@ class TeamInvitation(models.Model):
 
     class Meta:
         ordering = ['-created_at']
-        unique_together = ['project', 'recipient']
+        unique_together = ['project', 'recipient_email']  # Ensure uniqueness based on email
 
     def __str__(self):
         return f"Invitation from {self.sender} to {self.recipient} for {self.project}"
@@ -52,4 +52,15 @@ class TeamInvitation(models.Model):
                 self.recipient = CustomUser.objects.get(email=self.recipient_email)
             except CustomUser.DoesNotExist:
                 pass
+
+        # Allow re-invitation if the previous invitation was rejected
+        existing_invitation = TeamInvitation.objects.filter(
+            project=self.project,
+            recipient_email=self.recipient_email,
+            status='rejected'
+        ).first()
+
+        if existing_invitation:
+            existing_invitation.delete()  # Remove the rejected invitation
+
         super().save(*args, **kwargs)

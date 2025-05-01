@@ -41,4 +41,8 @@ class TeamInvitationSerializer(serializers.ModelSerializer):
     def validate_recipient_email(self, value):
         if CustomUser.objects.filter(email=value).exists():
             return value
+        # Log the validation error
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Validation failed: User with email {value} does not exist")
         raise serializers.ValidationError("User with this email does not exist.")
