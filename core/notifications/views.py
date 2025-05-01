@@ -4,6 +4,10 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import Notification
 from .serializers import NotificationSerializer
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 class NotificationViewSet(viewsets.ModelViewSet):
     """
@@ -39,3 +43,11 @@ class NotificationViewSet(viewsets.ModelViewSet):
         """Delete all notifications"""
         self.get_queryset().delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    def list(self, request, *args, **kwargs):
+        """Override list to handle missing user data"""
+        logger.info(f"Received request to list notifications for user: {request.user}")
+        if not request.user.is_authenticated:
+            logger.warning("User not authenticated. Returning 401 Unauthorized.")
+            return Response({'error': 'User not authenticated. Please log in.'}, status=status.HTTP_401_UNAUTHORIZED)
+        return super().list(request, *args, **kwargs)

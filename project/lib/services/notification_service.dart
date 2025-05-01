@@ -35,19 +35,18 @@ class NotificationService {
   static Future<List<NotificationModel>> fetchNotifications() async {
     try {
       final headers = await _getAuthHeaders();
-      // Use the correct endpoint for fetching notifications
-      // The endpoint should be empty since we're already at the notifications base URL
       final endpoint = '';
       _logUrl(endpoint);
       print('📡 Fetching notifications...');
 
       // Get user info for debugging
       final userData = await LocalStorage.getUser();
-      if (userData != null) {
-        print('🧑‍💻 Fetching notifications for user: ${userData['email']}');
-      } else {
-        print('⚠️ No user data found when fetching notifications');
+      if (userData == null) {
+        print('⚠️ No user data found. Please log in to fetch notifications.');
+        throw Exception('User not logged in. Please log in to view notifications.');
       }
+
+      print('🧑‍💻 Fetching notifications for user: ${userData['email']}');
 
       final response = await http.get(
         Uri.parse('$baseUrl$notificationsEndpoint$endpoint'),
@@ -56,104 +55,8 @@ class NotificationService {
 
       if (response.statusCode == 200) {
         print('✅ Response status code: 200');
-
-        // Print raw response for debugging
-        print('📄 Raw API response:');
-        print(response.body);
-
-        // Parse the response
         final dynamic decodedData = json.decode(response.body);
-        List<dynamic> data = [];
-
-        // Handle different response formats
-        if (decodedData is List) {
-          // If the response is already a list, use it directly
-          data = decodedData;
-          print('✅ API returned a list with ${data.length} notifications');
-        } else if (decodedData is Map) {
-          // If the response is a map, check if it contains a results field or similar
-          print('⚠️ API returned a map instead of a list');
-
-          if (decodedData.containsKey('results')) {
-            // Some APIs wrap the results in a 'results' field
-            data = decodedData['results'] as List;
-            print('✅ Found ${data.length} notifications in the results field');
-          } else if (decodedData.containsKey('notifications')) {
-            // Some APIs wrap the results in a 'notifications' field
-            final notificationsValue = decodedData['notifications'];
-
-            // Check if the notifications value is a URL string
-            if (notificationsValue is String && notificationsValue.startsWith('http')) {
-              print('🔗 Found notifications URL: $notificationsValue');
-
-              // Make a follow-up request to the URL
-              try {
-                print('🔄 Making follow-up request to notifications URL');
-                final followUpResponse = await http.get(
-                  Uri.parse(notificationsValue),
-                  headers: headers,
-                );
-
-                if (followUpResponse.statusCode == 200) {
-                  print('✅ Follow-up request successful');
-                  print('📄 Follow-up response:');
-                  print(followUpResponse.body);
-
-                  final followUpData = json.decode(followUpResponse.body);
-                  if (followUpData is List) {
-                    data = followUpData;
-                    print('✅ Found ${data.length} notifications in follow-up response');
-                  } else if (followUpData is Map && followUpData.containsKey('results')) {
-                    data = followUpData['results'] as List;
-                    print('✅ Found ${data.length} notifications in follow-up response results field');
-                  } else {
-                    print('⚠️ Follow-up response is not a list or does not contain results');
-                    data = [];
-                  }
-                } else {
-                  print('❌ Follow-up request failed: ${followUpResponse.statusCode}');
-                  print('❌ Follow-up response body: ${followUpResponse.body}');
-                  data = [];
-                }
-              } catch (e) {
-                print('❌ Error making follow-up request: $e');
-                data = [];
-              }
-            } else if (notificationsValue is List) {
-              // If notifications is already a list, use it directly
-              data = notificationsValue;
-              print('✅ Found ${data.length} notifications in the notifications field');
-            } else {
-              print('⚠️ Notifications field is not a list or URL: ${notificationsValue.runtimeType}');
-              data = [];
-            }
-          } else {
-            // If we can't find a list of notifications, create a list with just this object
-            // This is for APIs that return a single notification as an object
-            print('⚠️ No list found in response, treating as a single notification');
-
-            // Print all keys in the response for debugging
-            print('📊 Keys in response: ${decodedData.keys.join(', ')}');
-
-            // Create a list of notifications from the map data
-            // First check if this looks like a notification object
-            if (decodedData.containsKey('id') ||
-                decodedData.containsKey('title') ||
-                decodedData.containsKey('message')) {
-              data = [decodedData];
-              print('✅ Created a list with 1 notification from the response object');
-            } else {
-              // If it doesn't look like a notification, return an empty list
-              print('⚠️ Response does not contain notification data, returning empty list');
-              return [];
-            }
-          }
-        } else {
-          // If the response is neither a list nor a map, return an empty list
-          print('⚠️ Unexpected response format: ${decodedData.runtimeType}');
-          return [];
-        }
-
+        List<dynamic> data = decodedData is List ? decodedData : decodedData['results'] ?? [];
         print('✅ Successfully processed ${data.length} notifications from API');
 
         // Convert to notification models
@@ -202,7 +105,7 @@ class NotificationService {
       }
     } catch (e) {
       print('❌ Error fetching notifications: $e');
-      throw Exception('Failed to load notifications: $e');
+      throw Exception('Failed to load notifications. Please check your connection and try again.');
     }
   }
 

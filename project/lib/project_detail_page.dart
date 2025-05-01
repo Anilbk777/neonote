@@ -330,7 +330,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                         ),
                         const SizedBox(height: 32),
                         const Text(
-                          'Team Members',
+                          'Team',
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
@@ -355,12 +355,36 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                               color: Colors.black54,
                             ),
                           )
-                        else
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: members.map((member) => _buildMemberChip(member)).toList(),
+                        else ...[
+                          // Host header and chip
+                          const Text(
+                            'Host',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black54,
+                            ),
                           ),
+                          const SizedBox(height: 8),
+                          _buildMemberChip(members.first),
+                          const SizedBox(height: 20),
+                          if (members.length > 1) ...[
+                            const Text(
+                              'Team Members',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black54,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: members.skip(1).map((member) => _buildMemberChip(member)).toList(),
+                            ),
+                          ],
+                        ],
                       ],
                     ),
                   ),
@@ -372,4 +396,4 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       ),
     );
   }
-} 
+}

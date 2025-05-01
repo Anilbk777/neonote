@@ -9,6 +9,7 @@ from .models import Project, TeamInvitation
 from .serializers import ProjectSerializer, TeamInvitationSerializer
 from accounts.models import CustomUser
 import logging
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,11 @@ class ProjectViewSet(viewsets.ModelViewSet):
             models.Q(user=self.request.user) |
             models.Q(members=self.request.user)
         ).distinct()
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -126,7 +132,18 @@ class TeamInvitationViewSet(viewsets.ModelViewSet):
     serializer_class = TeamInvitationSerializer
 
     def get_queryset(self):
-        return TeamInvitation.objects.filter(recipient=self.request.user)
+        # Check if include_sent parameter is provided
+        include_sent = self.request.query_params.get('include_sent', 'false').lower() == 'true'
+        
+        if include_sent:
+            # Return both sent and received invitations
+            return TeamInvitation.objects.filter(
+                models.Q(recipient=self.request.user) | 
+                models.Q(sender=self.request.user)
+            ).order_by('-created_at')
+        else:
+            # Return only received invitations (default behavior)
+            return TeamInvitation.objects.filter(recipient=self.request.user).order_by('-created_at')
 
     @action(detail=True, methods=['post'])
     def respond(self, request, pk=None):
@@ -150,6 +167,9 @@ class TeamInvitationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Set responded_at timestamp
+        invitation.responded_at = timezone.now()
+        
         if action == 'accept':
             invitation.project.members.add(request.user)
             invitation.status = 'accepted'

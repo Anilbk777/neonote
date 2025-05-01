@@ -143,81 +143,22 @@ class NotificationProvider extends ChangeNotifier {
   // Initialize the provider
   Future<void> initialize() async {
     try {
-      // print('🔄 Initializing notification provider...');
-
-      // Check if user is logged in
-      final currentUser = await LocalStorage.getUser();
-      if (currentUser == null) {
-        // print('⚠️ No user found in local storage, skipping notification initialization');
+      final userData = await LocalStorage.getUser();
+      if (userData == null) {
+        print('⚠️ No user data found. Skipping notification initialization.');
         _notifications = [];
         notifyListeners();
-        throw Exception('User not logged in. Please log in to view notifications.');
+        return;
       }
 
-      final userKey = currentUser['id'] ?? currentUser['email'] ?? 'unknown_user';
-      // print('🔑 Initializing notifications for user: $userKey (ID: ${currentUser['id']})');
-
-      // First try to fetch from API (if available)
-      try {
-        // print('🔄 Fetching notifications from API...');
-        final apiNotifications = await NotificationService.fetchNotifications();
-        // print('✅ Successfully fetched ${apiNotifications.length} notifications from API');
-
-        // Use only API notifications - this ensures we only show notifications for the current user
-        _notifications = apiNotifications;
-
-        // Save to local storage
-        await _saveNotifications();
-        // print('💾 Saved notifications to local storage');
-      } catch (e) {
-        print('❌ Failed to fetch notifications from API: $e');
-
-        // Fall back to local notifications
-        // print('⚠️ Falling back to local notifications');
-        await _loadNotifications();
-
-        // If we still have no notifications, rethrow the error
-        if (_notifications.isEmpty) {
-          print('❌ No notifications found in local storage either');
-          throw Exception('Failed to load notifications. Please check your connection and try again.');
-        }
-      }
-
-      // Sort notifications
+      final apiNotifications = await NotificationService.fetchNotifications();
+      _notifications = apiNotifications;
       _sortNotifications();
-
-      // Debug log all notifications
-      if (_notifications.isNotEmpty) {
-        // print('📋 Loaded ${_notifications.length} notifications for user: $userKey');
-        // print('📋 Notification summary:');
-        // for (var notification in _notifications) {
-        //   print('  - ID: ${notification.id}');
-        //   print('    Title: ${notification.title}');
-        //   print('    Type: ${notification.type}');
-        //   print('    Source ID: ${notification.sourceId}');
-        //   print('    Created: ${notification.createdAt}');
-        //   if (notification.dueDateTime != null) {
-        //     print('    Due: ${notification.dueDateTime}');
-        //   }
-        // }
-      } else {
-        // print('📋 No notifications loaded for user: $userKey');
-        // print('📋 This could be normal if the user has no notifications, or it could indicate a problem.');
-        // print('📋 Check the backend to verify if this user should have notifications.');
-      }
-
-      // Check for due notifications immediately after loading
-      _checkForDueNotifications();
-
-      // Notify listeners
       notifyListeners();
     } catch (e) {
       print('❌ Error initializing notification provider: $e');
-      // Initialize with empty list if everything fails
       _notifications = [];
       notifyListeners();
-      // Rethrow to allow UI to handle the error
-      throw e;
     }
   }
 

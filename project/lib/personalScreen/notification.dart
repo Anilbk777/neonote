@@ -31,14 +31,10 @@ class _NotificationPageState extends State<NotificationPage> {
 
   // Refresh notifications
   Future<void> _refreshNotifications() async {
-    // Use a try-catch block to handle any errors that might occur
     try {
       if (_isLoading) {
-        // print('⚠️ Already refreshing notifications, skipping duplicate refresh');
         return; // Prevent multiple simultaneous refreshes
       }
-
-      // print('🔄 Refreshing notifications...');
 
       if (mounted) {
         setState(() {
@@ -47,12 +43,9 @@ class _NotificationPageState extends State<NotificationPage> {
         });
       }
 
-      // Get current user info for debugging
+      // Get current user info
       final userData = await LocalStorage.getUser();
-      if (userData != null) {
-        // print('🧑‍💻 Current user: ${userData['email']} (ID: ${userData['id']})');
-      } else {
-        // print('⚠️ No user data found in local storage');
+      if (userData == null) {
         if (mounted) {
           setState(() {
             _errorMessage = 'You need to be logged in to view notifications.';
@@ -62,33 +55,35 @@ class _NotificationPageState extends State<NotificationPage> {
         return;
       }
 
-      // Get the notification provider safely
+      // Get the notification provider
       if (!mounted) return;
       final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
 
-      // Force a complete refresh by reinitializing the provider
-      // print('🔄 Reinitializing notification provider to get fresh data from backend');
-      await notificationProvider.initialize();
-
-      // Print notification read status for debugging
-      final notifications = notificationProvider.notifications;
-      // print('✅ Notifications refreshed successfully. Total: ${notifications.length}');
-
-      // Log each notification's read status for debugging
-      for (var notification in notifications) {
-        // print('📌 Notification ID: ${notification.id}, Title: ${notification.title}, Read: ${notification.isRead}');
+      // Retry logic for fetching notifications
+      int retryCount = 0;
+      const int maxRetries = 3;
+      while (retryCount < maxRetries) {
+        try {
+          await notificationProvider.initialize();
+          break; // Exit loop if successful
+        } catch (error) {
+          retryCount++;
+          if (retryCount >= maxRetries) {
+            throw Exception('Failed to fetch notifications after $maxRetries attempts.');
+          }
+          await Future.delayed(const Duration(seconds: 2)); // Wait before retrying
+        }
       }
-    } catch (error) {
-      print('❌ Error refreshing notifications: $error');
+
       if (mounted) {
         setState(() {
-          _errorMessage = 'Failed to load notifications. Please try again.';
+          _isLoading = false;
         });
       }
-    } finally {
-      // Always make sure to update the loading state
+    } catch (error) {
       if (mounted) {
         setState(() {
+          _errorMessage = 'Failed to load notifications. Please check your connection and try again.';
           _isLoading = false;
         });
       }
