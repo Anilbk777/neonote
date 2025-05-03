@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 import 'package:project/models/notification_model.dart';
 import 'package:project/services/local_storage.dart';
@@ -7,8 +8,7 @@ class NotificationService {
   // Base URL for the API
   static const String baseUrl = 'http://127.0.0.1:8000/api';
 
-  // Notifications endpoint - note the double 'notifications' in the path
-  // This matches the Django router structure
+  // Notifications endpoint - corrected to match Django router structure
   static const String notificationsEndpoint = '/notifications/notifications';
 
   // Print the full URL for debugging
@@ -23,11 +23,17 @@ class NotificationService {
       throw Exception('Authentication token not found. Please login again.');
     }
 
-    print('🔑 Using authentication token: ${token.substring(0, 10)}...');
+    // Make sure the token has the correct format
+    String authToken = token;
+    if (!token.startsWith('Bearer ')) {
+      authToken = 'Bearer $token';
+    }
+
+    print('🔑 Using authentication token: ${authToken.substring(0, math.min(16, authToken.length))}...');
 
     return {
       'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
+      'Authorization': authToken,
     };
   }
 
@@ -116,6 +122,7 @@ class NotificationService {
       print('📡 Marking notification #$notificationId as read');
 
       // Use the correct endpoint format as defined in the Django ViewSet
+      // Make sure we're using the correct format for the API endpoint
       final endpoint = '/$notificationId/mark_as_read/';
       _logUrl(endpoint);
 
@@ -126,6 +133,13 @@ class NotificationService {
       // Add extra debugging
       print('🔍 Notification ID: $notificationId');
       print('🔍 Headers: $headers');
+
+      // Try to get user data to ensure we're authenticated
+      final userData = await LocalStorage.getUser();
+      if (userData == null) {
+        print('⚠️ No user data found. Please log in to mark notifications as read.');
+        throw Exception('User not logged in. Please log in to mark notifications as read.');
+      }
 
       final response = await http.post(
         Uri.parse(url),
@@ -305,6 +319,12 @@ class NotificationService {
           case 'task_due':
             type = NotificationType.taskDue;
             break;
+          case 'invitation_accepted':
+            type = NotificationType.invitationAccepted;
+            break;
+          case 'invitation_rejected':
+            type = NotificationType.invitationRejected;
+            break;
           default:
             try {
               type = NotificationType.values.firstWhere(
@@ -390,5 +410,93 @@ class NotificationService {
 
     print('✅ Successfully converted notification: ${notification.id} - ${notification.title}');
     return notification;
+  }
+
+  // Get unread invitation notification count
+  static Future<int> getUnreadInvitationResponseCount() async {
+    try {
+      // Check if user is authenticated first
+      final token = await LocalStorage.getToken();
+      if (token == null) {
+        print('⚠️ No authentication token found. Skipping invitation count check.');
+        return 0;
+      }
+
+      try {
+        final headers = await _getAuthHeaders();
+        print('📡 Fetching unread invitation response count');
+
+        final endpoint = '/unread_invitation_responses/';
+        _logUrl(endpoint);
+
+        // Print the full URL for debugging
+        final url = '$baseUrl$notificationsEndpoint$endpoint';
+        print('🔗 Full URL: $url');
+
+        final response = await http.get(
+          Uri.parse(url),
+          headers: headers,
+        );
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          final count = data['count'] ?? 0;
+          print('✅ Unread invitation response count: $count');
+          return count;
+        } else if (response.statusCode == 401) {
+          print('🔒 Authentication failed. Token might be expired.');
+          await LocalStorage.clearToken();
+          return 0;
+        } else {
+          print('❌ Failed to get unread invitation response count: ${response.statusCode}');
+          return 0;
+        }
+      } catch (apiError) {
+        print('❌ API error getting unread invitation response count: $apiError');
+        return 0;
+      }
+    } catch (e) {
+      print('❌ Error getting unread invitation response count: $e');
+      return 0; // Return 0 on error to avoid breaking the UI
+    }
+  }
+
+  // Mark invitation response notifications as read
+  static Future<bool> markInvitationResponsesAsRead() async {
+    try {
+      print('📡 Marking invitation responses as read');
+
+      // Get all notifications first
+      final notifications = await fetchNotifications();
+
+      // Filter for invitation response notifications
+      final invitationResponses = notifications.where((notification) =>
+        !notification.isRead &&
+        (notification.type == NotificationType.invitationAccepted ||
+         notification.type == NotificationType.invitationRejected)
+      ).toList();
+
+      // If there are no unread invitation responses, return early
+      if (invitationResponses.isEmpty) {
+        print('✅ No unread invitation responses to mark as read');
+        return true;
+      }
+
+      // Mark each one as read individually
+      for (var notification in invitationResponses) {
+        try {
+          await markAsRead(notification.id);
+        } catch (e) {
+          print('⚠️ Error marking notification ${notification.id} as read: $e');
+          // Continue with other notifications even if one fails
+        }
+      }
+
+      print('✅ Marked ${invitationResponses.length} invitation responses as read');
+      return true;
+    } catch (e) {
+      print('❌ Error marking invitation responses as read: $e');
+      return false;
+    }
   }
 }

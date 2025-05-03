@@ -1,96 +1,39 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
-// import 'package:project/dashboard.dart';
 
 class RegisterPage extends StatefulWidget {
-  const RegisterPage({super.key});
+  const RegisterPage({Key? key}) : super(key: key);
 
   @override
-  _RegisterPageState createState() => _RegisterPageState();
+  State<RegisterPage> createState() => _RegisterPageState();
 }
 
 class _RegisterPageState extends State<RegisterPage> {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _fullNameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _fullNameController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController =
-      TextEditingController();
 
   bool _isLoading = false;
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
 
-  Future<void> _registerUser() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    final response = await http.post(
-      Uri.parse('http://127.0.0.1:8000/api/accounts/register/'),
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: json.encode({
-        'email': _emailController.text,
-        'full_name': _fullNameController.text,
-        'password': _passwordController.text,
-      }),
-    );
-
-    setState(() {
-      _isLoading = false;
-    });
-
-    if (response.statusCode == 201) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User registered successfully')),
-      );
-      // Redirect to the login page
-      Navigator.pushReplacementNamed(context, '/login');
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Registration failed: ${response.body}')),
+  void _navigateToOtpPage() {
+    if (_formKey.currentState!.validate()) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OtpVerificationPage(
+            email: _emailController.text.trim(),
+            fullName: _fullNameController.text.trim(),
+            password: _passwordController.text,
+          ),
+        ),
       );
     }
   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(title: Text('Register')),
-//       body: Padding(
-//         padding: const EdgeInsets.all(16.0),
-//         child: Column(
-//           children: [
-//             TextField(
-//               controller: _fullNameController,
-//               decoration: InputDecoration(labelText: 'Full Name'),
-//             ),
-//             TextField(
-//               controller: _emailController,
-//               decoration: InputDecoration(labelText: 'Email'),
-//               keyboardType: TextInputType.emailAddress,
-//             ),
-//             TextField(
-//               controller: _passwordController,
-//               decoration: InputDecoration(labelText: 'Password'),
-//               obscureText: true,
-//             ),
-//             SizedBox(height: 20),
-//             ElevatedButton(
-//               onPressed: _isLoading ? null : _registerUser,
-//               child: _isLoading
-//                   ? CircularProgressIndicator()
-//                   : Text('Register'),
-//             ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }
 
   @override
   Widget build(BuildContext context) {
@@ -106,14 +49,14 @@ class _RegisterPageState extends State<RegisterPage> {
               const Text(
                 'NeoNote',
                 style: TextStyle(
-                  fontSize: 32,
+                  fontSize: 32, // Large and bold header
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF1877F2), // Facebook blue
                 ),
               ),
               const SizedBox(height: 10),
               const Text(
-                'Create Your Account!',
+                'Create Your Account',
                 style: TextStyle(
                   fontSize: 16,
                   color: Color(0xFF555555), // Subtle gray text
@@ -121,7 +64,7 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
               const SizedBox(height: 30),
 
-              // Signup Form Container
+              // Registration Form Container
               Container(
                 constraints: const BoxConstraints.tightForFinite(width: 600),
                 padding: const EdgeInsets.all(20),
@@ -130,7 +73,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   borderRadius: BorderRadius.circular(10),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withAlpha(25),
                       blurRadius: 8,
                       offset: const Offset(0, 4),
                     ),
@@ -147,8 +90,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           labelText: "Full Name",
                           labelStyle: const TextStyle(color: Color(0xFF555555)),
                           hintText: 'Enter your full name',
-                          prefixIcon: const Icon(Icons.person,
-                              color: Color(0xFF1877F2)),
+                          prefixIcon: const Icon(Icons.person, color: Color(0xFF1877F2)),
                           filled: true,
                           fillColor: const Color(0xFFF7F7F7),
                           border: OutlineInputBorder(
@@ -173,8 +115,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           labelText: "Email",
                           labelStyle: const TextStyle(color: Color(0xFF555555)),
                           hintText: 'Enter your email',
-                          prefixIcon:
-                              const Icon(Icons.email, color: Color(0xFF1877F2)),
+                          prefixIcon: const Icon(Icons.email, color: Color(0xFF1877F2)),
                           filled: true,
                           fillColor: const Color(0xFFF7F7F7),
                           border: OutlineInputBorder(
@@ -202,8 +143,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           labelText: "Password",
                           labelStyle: const TextStyle(color: Color(0xFF555555)),
                           hintText: 'Enter your password',
-                          prefixIcon:
-                              const Icon(Icons.lock, color: Color(0xFF1877F2)),
+                          prefixIcon: const Icon(Icons.lock, color: Color(0xFF1877F2)),
                           suffixIcon: IconButton(
                             icon: Icon(
                               _isPasswordVisible
@@ -226,13 +166,10 @@ class _RegisterPageState extends State<RegisterPage> {
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Please enter a password';
+                            return 'Please enter your password';
                           }
-                          if (value.length < 8) {
-                            return 'Password must be at least 8 characters';
-                          }
-                          if (!RegExp(r'[!@#\$&*~]').hasMatch(value)) {
-                            return 'Password must include a special character (!@#\$&*~)';
+                          if (value.length < 6) {
+                            return 'Password must be at least 6 characters';
                           }
                           return null;
                         },
@@ -246,9 +183,8 @@ class _RegisterPageState extends State<RegisterPage> {
                         decoration: InputDecoration(
                           labelText: "Confirm Password",
                           labelStyle: const TextStyle(color: Color(0xFF555555)),
-                          hintText: 'Confirm your password',
-                          prefixIcon:
-                              const Icon(Icons.lock, color: Color(0xFF1877F2)),
+                          hintText: 'Re-enter your password',
+                          prefixIcon: const Icon(Icons.lock, color: Color(0xFF1877F2)),
                           suffixIcon: IconButton(
                             icon: Icon(
                               _isConfirmPasswordVisible
@@ -258,8 +194,7 @@ class _RegisterPageState extends State<RegisterPage> {
                             ),
                             onPressed: () {
                               setState(() {
-                                _isConfirmPasswordVisible =
-                                    !_isConfirmPasswordVisible;
+                                _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
                               });
                             },
                           ),
@@ -271,6 +206,9 @@ class _RegisterPageState extends State<RegisterPage> {
                           ),
                         ),
                         validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please confirm your password';
+                          }
                           if (value != _passwordController.text) {
                             return 'Passwords do not match';
                           }
@@ -279,40 +217,23 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                       const SizedBox(height: 20),
 
-                      // Signup Button
-                      // onTap: () {
-                      //   if (_formKey.currentState!.validate()) {
-                      //     Navigator.push(
-                      //       context,
-                      //       MaterialPageRoute(
-                      //         builder: (context) => DashboardPage(),
-                      //       ),
-                      //     );
-                      //   }
-                      // },
                       ElevatedButton(
-                        onPressed: _isLoading
-                            ? null
-                            : _registerUser, // Disable button when loading
+                        onPressed: _isLoading ? null : _navigateToOtpPage,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              const Color(0xFF1877F2), // Facebook blue
-                          minimumSize: const Size(double.infinity,
-                              50), // Full width and fixed height
+                          backgroundColor: const Color(0xFF1877F2), // Facebook blue
+                          minimumSize: const Size(double.infinity, 50), // Full width
                           shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(8), // Rounded corners
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 12), // Vertical padding
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                         child: _isLoading
                             ? const CircularProgressIndicator(
-                                color: Colors.white, // White spinner
-                                strokeWidth: 3, // Thinner spinner
+                                color: Colors.white,
+                                strokeWidth: 3,
                               )
                             : const Text(
-                                'Sign Up',
+                                'Register',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
@@ -326,14 +247,14 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
               const SizedBox(height: 20),
 
-              // Already Have an Account
+              // Login Link
               const Text(
                 "Already have an account?",
                 style: TextStyle(color: Color(0xFF555555), fontSize: 14),
               ),
               TextButton(
                 onPressed: () {
-                  Navigator.pop(context); // Navigate back to login
+                  Navigator.pop(context);
                 },
                 child: const Text(
                   'Log In',
@@ -341,6 +262,290 @@ class _RegisterPageState extends State<RegisterPage> {
                     color: Color(0xFF1877F2),
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class OtpVerificationPage extends StatefulWidget {
+  final String email;
+  final String fullName;
+  final String password;
+
+  const OtpVerificationPage({
+    super.key,
+    required this.email,
+    required this.fullName,
+    required this.password,
+  });
+
+  @override
+  State<OtpVerificationPage> createState() => _OtpVerificationPageState();
+}
+
+class _OtpVerificationPageState extends State<OtpVerificationPage> {
+  final TextEditingController _otpController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
+  bool _isSendingOtp = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _sendOtp();
+  }
+
+  void _sendOtp() async {
+    setState(() {
+      _isSendingOtp = true;
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse('http://127.0.0.1:8000/api/accounts/send-otp/'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'email': widget.email,
+        }),
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _isSendingOtp = false;
+      });
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("OTP sent to ${widget.email}. Check your email.")),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to send OTP: ${response.body}")),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isSendingOtp = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error sending OTP: $e")),
+      );
+    }
+  }
+
+  void _verifyOtpAndRegister() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse('http://127.0.0.1:8000/api/accounts/register/'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'email': widget.email,
+          'full_name': widget.fullName,
+          'password': widget.password,
+          'otp': _otpController.text.trim(),
+        }),
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (response.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('User registered successfully')),
+        );
+        Navigator.pushReplacementNamed(context, '/login');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Registration failed: ${response.body}')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error during registration: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFE9EBEE), // Light gray background
+      appBar: AppBar(
+        title: const Text("Verify OTP"),
+        backgroundColor: const Color(0xFF1877F2),
+        foregroundColor: Colors.white,
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // App Title
+              const Text(
+                'Verification',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1877F2), // Facebook blue
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Enter the OTP sent to your email',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Color(0xFF555555), // Subtle gray text
+                ),
+              ),
+              const SizedBox(height: 30),
+
+              // OTP Form Container
+              Container(
+                constraints: const BoxConstraints.tightForFinite(width: 600),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(25),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Email display
+                      const Text(
+                        "We've sent a code to:",
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF555555),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.email,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1877F2),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // OTP Field
+                      TextFormField(
+                        controller: _otpController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: "OTP Code",
+                          labelStyle: const TextStyle(color: Color(0xFF555555)),
+                          hintText: 'Enter 6-digit code',
+                          prefixIcon: const Icon(Icons.security, color: Color(0xFF1877F2)),
+                          filled: true,
+                          fillColor: const Color(0xFFF7F7F7),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter the OTP code';
+                          }
+                          if (value.length < 6) {
+                            return 'Please enter a valid OTP code';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Verify Button
+                      ElevatedButton(
+                        onPressed: _isLoading ? null : _verifyOtpAndRegister,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1877F2), // Facebook blue
+                          minimumSize: const Size(double.infinity, 50), // Full width
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: _isLoading
+                            ? const CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 3,
+                              )
+                            : const Text(
+                                'Verify & Complete Registration',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                      ),
+                      const SizedBox(height: 15),
+
+                      // Resend OTP
+                      Center(
+                        child: _isSendingOtp
+                            ? const CircularProgressIndicator(
+                                color: Color(0xFF1877F2),
+                                strokeWidth: 3,
+                              )
+                            : TextButton.icon(
+                                onPressed: _sendOtp,
+                                icon: const Icon(
+                                  Icons.refresh,
+                                  color: Color(0xFF1877F2),
+                                ),
+                                label: const Text(
+                                  'Resend OTP',
+                                  style: TextStyle(
+                                    color: Color(0xFF1877F2),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                      ),
+                    ],
                   ),
                 ),
               ),

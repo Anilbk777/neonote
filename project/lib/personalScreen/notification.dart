@@ -9,6 +9,8 @@ import 'package:provider/provider.dart';
 import 'package:project/personalScreen/goal.dart';
 import 'package:project/personalScreen/tasklist.dart';
 import 'package:project/personalScreen/goal_task_detail.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class NotificationPage extends StatefulWidget {
   const NotificationPage({super.key});
@@ -43,9 +45,9 @@ class _NotificationPageState extends State<NotificationPage> {
         });
       }
 
-      // Get current user info
-      final userData = await LocalStorage.getUser();
-      if (userData == null) {
+      // Get token first
+      final token = await LocalStorage.getToken();
+      if (token == null) {
         if (mounted) {
           setState(() {
             _errorMessage = 'You need to be logged in to view notifications.';
@@ -53,6 +55,48 @@ class _NotificationPageState extends State<NotificationPage> {
           });
         }
         return;
+      }
+
+      // Get current user info
+      final userData = await LocalStorage.getUser();
+      if (userData == null) {
+        // Try to fetch user data using the token
+        try {
+          print("No user data found in storage. Attempting to fetch user profile...");
+          final response = await http.get(
+            Uri.parse('http://127.0.0.1:8000/api/accounts/profile/'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+          );
+
+          if (response.statusCode == 200) {
+            final fetchedUserData = json.decode(response.body);
+            print("✅ User profile fetched: $fetchedUserData");
+
+            // Save user data to local storage
+            await LocalStorage.saveUser(fetchedUserData);
+            print("✅ User data saved to local storage");
+          } else {
+            if (mounted) {
+              setState(() {
+                _errorMessage = 'You need to be logged in to view notifications.';
+                _isLoading = false;
+              });
+            }
+            return;
+          }
+        } catch (e) {
+          print("⚠️ Error fetching user profile: $e");
+          if (mounted) {
+            setState(() {
+              _errorMessage = 'You need to be logged in to view notifications.';
+              _isLoading = false;
+            });
+          }
+          return;
+        }
       }
 
       // Get the notification provider

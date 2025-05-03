@@ -53,14 +53,27 @@ class TeamInvitation(models.Model):
             except CustomUser.DoesNotExist:
                 pass
 
-        # Allow re-invitation if the previous invitation was rejected
-        existing_invitation = TeamInvitation.objects.filter(
-            project=self.project,
-            recipient_email=self.recipient_email,
-            status='rejected'
-        ).first()
+        # If this is a new invitation (no ID yet), check for existing invitations
+        if not self.pk:
+            # Check for any existing invitation (regardless of status)
+            existing_invitation = TeamInvitation.objects.filter(
+                project=self.project,
+                recipient_email=self.recipient_email
+            ).first()
 
-        if existing_invitation:
-            existing_invitation.delete()  # Remove the rejected invitation
+            # If there's an existing invitation and it's not pending, update it instead
+            if existing_invitation and existing_invitation.status != 'pending':
+                # Update the existing invitation instead of creating a new one
+                existing_invitation.status = 'pending'
+                existing_invitation.sender = self.sender
+                existing_invitation.save()
+
+                # Don't save this new invitation
+                return existing_invitation
+
+            # If there's a rejected invitation, remove it (legacy behavior)
+            elif existing_invitation and existing_invitation.status == 'rejected':
+                existing_invitation.delete()  # Remove the rejected invitation
 
         super().save(*args, **kwargs)
+        return self

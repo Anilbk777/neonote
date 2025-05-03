@@ -20,9 +20,12 @@ void main() async {
   final binProvider = BinProvider();
   final notificationProvider = NotificationProvider();
 
-  // Initialize notification provider (don't await to avoid blocking app startup)
-  notificationProvider.initialize().catchError((error) {
-    print('Error initializing notification provider: $error');
+  // Initialize notification provider with a delay to ensure authentication is complete
+  // This prevents errors during registration/login process
+  Future.delayed(const Duration(seconds: 2), () {
+    notificationProvider.initialize().catchError((error) {
+      print('Error initializing notification provider: $error');
+    });
   });
 
   runApp(

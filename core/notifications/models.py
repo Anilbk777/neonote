@@ -11,6 +11,9 @@ class Notification(models.Model):
         ('goal_reminder', 'Goal Reminder'),
         ('task_due', 'Task Due'),
         ('system', 'System Notification'),
+        ('invitation_accepted', 'Invitation Accepted'),
+        ('invitation_rejected', 'Invitation Rejected'),
+        ('project_invitation', 'Project Invitation'),
     ]
 
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='notifications')
@@ -159,3 +162,88 @@ class Notification(models.Model):
             notification_type='task_due',
             source_id=task_id
         ).delete()
+
+    @classmethod
+    def create_invitation_notification(cls, invitation, action):
+        """
+        Create a notification for invitation responses
+
+        Args:
+            invitation: The TeamInvitation object
+            action: Either 'accepted' or 'rejected'
+        """
+        if action not in ['accepted', 'rejected']:
+            return None
+
+        notification_type = f'invitation_{action}'
+
+        # Create notification for the sender of the invitation
+        title = f"Invitation {action.capitalize()}"
+        message = f"{invitation.recipient.full_name} has {action} your invitation to join project '{invitation.project.name}'"
+
+        # Check if a notification for this invitation already exists
+        existing = cls.objects.filter(
+            user=invitation.sender,
+            notification_type=notification_type,
+            source_id=invitation.id
+        ).first()
+
+        if existing:
+            # Update existing notification
+            existing.title = title
+            existing.message = message
+            existing.is_read = False
+            existing.created_at = timezone.now()  # Update timestamp to bring to top
+            existing.save()
+            return existing
+        else:
+            # Create new notification
+            return cls.objects.create(
+                user=invitation.sender,
+                title=title,
+                message=message,
+                notification_type=notification_type,
+                source_id=invitation.id
+            )
+
+    @classmethod
+    def create_project_invitation_notification(cls, invitation, is_reinvitation=False):
+        """
+        Create a notification for a new project invitation
+
+        Args:
+            invitation: The TeamInvitation object
+            is_reinvitation: Whether this is a re-invitation after the user left
+        """
+        # Delete any existing project invitation notifications for this project and recipient
+        from django.db.models import Q
+        cls.objects.filter(
+            Q(notification_type='project_invitation'),
+            Q(user=invitation.recipient),
+            Q(source_id=invitation.id)
+        ).delete()
+
+        # Also delete any accepted/rejected invitation notifications
+        cls.objects.filter(
+            Q(notification_type='invitation_accepted') |
+            Q(notification_type='invitation_rejected'),
+            Q(user=invitation.recipient),
+            Q(message__contains=f"project '{invitation.project.name}'")
+        ).delete()
+
+        # Create the notification message based on whether this is a re-invitation
+        if is_reinvitation:
+            title = "Project Re-invitation"
+            message = f"{invitation.sender.full_name} has invited you to join project '{invitation.project.name}' again"
+        else:
+            title = "New Project Invitation"
+            message = f"{invitation.sender.full_name} has invited you to join project '{invitation.project.name}'"
+
+        # Create the notification
+        return cls.objects.create(
+            user=invitation.recipient,
+            title=title,
+            message=message,
+            notification_type='project_invitation',
+            source_id=invitation.id
+        )

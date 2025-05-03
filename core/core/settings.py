@@ -74,13 +74,12 @@ REST_FRAMEWORK = {
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # CORS middleware must be placed before CommonMiddleware
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
-
 ]
 
 ROOT_URLCONF = 'core.urls'
@@ -175,8 +174,24 @@ import os
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# CORS Settings - Maximum permissiveness for development
 CORS_ALLOW_ALL_ORIGINS = True
-# settings.py
+CORS_ALLOW_CREDENTIALS = True
+CORS_ORIGIN_ALLOW_ALL = True
+
+# Specific origins if needed
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:62354",
+    "http://127.0.0.1:62354",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "chrome-extension://*",
+]
+
+# Allow all hosts for development
+ALLOWED_HOSTS = ['*']
 
 CORS_ALLOW_METHODS = [
     'GET',
@@ -184,7 +199,16 @@ CORS_ALLOW_METHODS = [
     'PUT',
     'PATCH',
     'DELETE',
+    'OPTIONS',
 ]
+
+CORS_ALLOW_HEADERS = [
+    '*',  # Allow all headers for development
+]
+
+# Additional CORS settings
+CORS_EXPOSE_HEADERS = ['*']
+CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
 
 from datetime import timedelta
 
@@ -193,4 +217,47 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=90),  # Refresh token valid for 3 months (optional)
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
+}
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'kritiadhikari213@gmail.com'     # your Gmail
+EMAIL_HOST_PASSWORD = 'kksl flfz dess fxrw'    # NOT your normal Gmail password
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+# Logging configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        '': {  # Root logger
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'accounts': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
 }

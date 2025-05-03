@@ -201,4 +201,6 @@ enum NotificationType {
   goalReminder,
   taskDue,
   systemNotification,
+  invitationAccepted,
+  invitationRejected,
 }

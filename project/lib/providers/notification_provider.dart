@@ -143,6 +143,15 @@ class NotificationProvider extends ChangeNotifier {
   // Initialize the provider
   Future<void> initialize() async {
     try {
+      // Check if user is authenticated first
+      final token = await LocalStorage.getToken();
+      if (token == null) {
+        print('⚠️ No authentication token found. Skipping notification initialization.');
+        _notifications = [];
+        notifyListeners();
+        return;
+      }
+
       final userData = await LocalStorage.getUser();
       if (userData == null) {
         print('⚠️ No user data found. Skipping notification initialization.');
@@ -151,13 +160,21 @@ class NotificationProvider extends ChangeNotifier {
         return;
       }
 
-      final apiNotifications = await NotificationService.fetchNotifications();
-      _notifications = apiNotifications;
-      _sortNotifications();
+      try {
+        final apiNotifications = await NotificationService.fetchNotifications();
+        _notifications = apiNotifications;
+        _sortNotifications();
+      } catch (apiError) {
+        // Handle API errors gracefully
+        print('⚠️ Error fetching notifications from API: $apiError');
+        // Don't clear existing notifications on API error
+        // Just keep the current state
+      }
+
       notifyListeners();
     } catch (e) {
       print('❌ Error initializing notification provider: $e');
-      _notifications = [];
+      // Don't clear notifications on general errors
       notifyListeners();
     }
   }

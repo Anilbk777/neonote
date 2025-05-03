@@ -33,7 +33,9 @@ class LocalStorage {
 
   static Future<void> clearToken() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_token');  // Clear the token
+    await prefs.remove(_tokenKey);     // Clear the token using the correct key
+    await prefs.remove(_userIdKey);    // Clear user ID
+    await prefs.remove('auth_token');  // Clear any legacy token
     await prefs.remove('user_pages');  // Clear pages data if needed
     await prefs.remove('user_data');   // Clear user data
     print("🗑️ Token and user data cleared!");

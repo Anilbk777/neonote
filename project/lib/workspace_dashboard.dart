@@ -49,13 +49,7 @@ class _WorkspaceDashboardScreenState extends State<WorkspaceDashboardScreen> {
                   ),
                 ),
                 const Spacer(), // This ensures the text stays centered
-                IconButton(
-                  icon: const Icon(Icons.settings, color: Colors.white),
-                  onPressed: () {
-                    // Add settings functionality here
-                  },
-                  tooltip: 'Settings',
-                ),
+                // Removed Settings Icon Button
               ],
             ),
           ),
